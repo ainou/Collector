@@ -31,9 +31,7 @@ body {
     saturate(var(--app-saturation, 200%)) var(--app-brightness-filter);
   border-radius: var(--app-border-radius, 12px);
   border: 0.5px solid rgba(0, 0, 0, 0.08);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-md), 0 2px 8px var(--shadow-sm);
   overflow: clip;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);

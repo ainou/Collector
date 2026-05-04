@@ -95,9 +95,7 @@
       var(--app-background, #1e1e2e) 28%,
       transparent
     );
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.08),
-      0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-md), 0 2px 8px var(--shadow-sm);
     backdrop-filter: blur(28px) saturate(135%) brightness(0.92);
     -webkit-backdrop-filter: blur(28px) saturate(135%) brightness(0.92);
     pointer-events: none;

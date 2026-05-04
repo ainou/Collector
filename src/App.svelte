@@ -1067,9 +1067,7 @@
       saturate(var(--app-saturation, 200%)) var(--app-brightness-filter);
     border-radius: var(--app-border-radius, 12px);
     border: 0.5px solid rgba(0, 0, 0, 0.08);
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.08),
-      0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-md), 0 2px 8px var(--shadow-sm);
     overflow: clip;
     display: flex;
     flex-direction: column;
@@ -1088,9 +1086,7 @@
     background: rgba(255, 255, 255, 0.7);
     border-color: rgba(255, 255, 255, 0.7);
     border-width: 2px;
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.08),
-      0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-md), 0 2px 8px var(--shadow-sm);
   }
 
   .accent-line {
@@ -1307,23 +1303,23 @@
     left: 50%;
     transform: translateX(-50%);
     padding: 8px 16px;
-    background: rgba(52, 199, 89, 0.12);
+    background: var(--success-bg);
     -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
-    border: 0.5px solid rgba(52, 199, 89, 0.3);
+    border: 0.5px solid var(--success-border);
     border-radius: 8px;
     font-size: 12px;
     font-weight: 600;
-    color: #34c759;
+    color: var(--success-color);
     animation: fadeInUp 0.2s ease-out;
     white-space: nowrap;
     z-index: 100;
   }
 
   .status-toast.error {
-    background: rgba(255, 59, 48, 0.12);
-    border-color: rgba(255, 59, 48, 0.3);
-    color: #ff3b30;
+    background: var(--error-bg);
+    border-color: var(--error-border);
+    color: var(--error-color);
   }
 
   @keyframes fadeInUp {

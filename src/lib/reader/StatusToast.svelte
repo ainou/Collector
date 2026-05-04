@@ -16,14 +16,14 @@
     left: 50%;
     transform: translateX(-50%);
     padding: 8px 16px;
-    background: rgba(52, 199, 89, 0.12);
+    background: var(--success-bg);
     -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
-    border: 0.5px solid rgba(52, 199, 89, 0.3);
+    border: 0.5px solid var(--success-border);
     border-radius: 8px;
     font-size: 12px;
     font-weight: 600;
-    color: #34c759;
+    color: var(--success-color);
     animation: fadeInUp 0.2s ease-out;
     white-space: nowrap;
     z-index: 100;
@@ -34,9 +34,9 @@
   }
 
   .status-toast.error {
-    background: rgba(255, 59, 48, 0.12);
-    border-color: rgba(255, 59, 48, 0.3);
-    color: #ff3b30;
+    background: var(--error-bg);
+    border-color: var(--error-border);
+    color: var(--error-color);
   }
 
   @keyframes fadeInUp {

@@ -1259,15 +1259,15 @@
   }
 
   .status.success {
-    background: rgba(52, 211, 153, 0.15);
-    color: #059669;
-    border: 1px solid rgba(52, 211, 153, 0.2);
+    background: var(--success-bg);
+    color: var(--success-color);
+    border: 1px solid var(--success-border);
   }
 
   .status.error {
-    background: rgba(239, 68, 68, 0.15);
-    color: #dc2626;
-    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: var(--error-bg);
+    color: var(--error-color);
+    border: 1px solid var(--error-border);
   }
 
   main {
@@ -1318,14 +1318,14 @@
   }
 
   .nav-item:hover {
-    border-color: rgba(139, 92, 246, 0.18);
+    border-color: color-mix(in srgb, var(--accent-color) 18%, transparent);
     box-shadow: inset 0px 0px 6px 2px rgba(15, 23, 42, 0.06);
   }
 
   .nav-item.active {
     background: linear-gradient(
       170deg,
-      rgba(139, 92, 246, 0.06) 0%,
+      color-mix(in srgb, var(--accent-color) 6%, transparent) 0%,
       rgba(255, 255, 255, 0.96) 100%
     );
 
@@ -1658,14 +1658,14 @@
   }
 
   button.primary {
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, var(--accent-color) 0%, #7c3aed 100%);
     color: white;
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-color) 25%, transparent);
   }
 
   button.primary:hover:not(:disabled) {
     background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-color) 30%, transparent);
     transform: translateY(-1px);
   }
 
