@@ -32,12 +32,19 @@ Collector is a macOS menu bar app for fast text and image capture into Obsidian.
 ### Additions and Fixes in 1.1.2
 **Fixes**
 - Pinned Reader notes are now stored as vault-relative paths, so they keep working after moving the vault
-- Existing pinned note paths are migrated automatically from absolute paths where possible
+- The image folder is now also stored as a vault-relative path and existing absolute paths are migrated automatically where possible
+- `Copy Text to Collector` no longer inserts stale clipboard content when nothing is selected
+- `Copy Text to Collector` now shows proper feedback when Accessibility permission is missing
+- Command Palette and Append Picker open faster and the list scrolling bug at the top of the selection is fixed
 - The Save button in Settings is visible again
 - Open delay inputs in Settings now keep the `ms` label aligned correctly
 
 **New**
 - Separate open delay controls for the Note Window and Reader Window
+- Global shortcuts for the Note Window and Reader Window can now optionally close the window as well, either with the same shortcut or with a separate one
+- Saving as a new note now uses a leading `# Heading` as the note title and filename
+- `Append to Note` is now a two-step flow: choose the note first, then append at the end or insert after a heading
+- Settings were redesigned into clearer cards and grouped more consistently
 - Activation settings were simplified by removing the old global reaction time slider from the UI
 
 ### Additions and Fixes in 1.1.1
