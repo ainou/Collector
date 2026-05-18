@@ -36,6 +36,35 @@ struct ScreenBounds {
     width: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EdgeTarget {
+    Reader,
+    Capture,
+}
+
+impl EdgeTarget {
+    fn event_name(self) -> &'static str {
+        match self {
+            Self::Reader => "show_reader",
+            Self::Capture => "show_capture",
+        }
+    }
+
+    fn trigger_delay(self, settings: &Settings) -> Duration {
+        let delay_ms = match self {
+            Self::Reader if settings.reader_edge_open_delay_enabled => {
+                settings.reader_edge_open_delay_ms
+            }
+            Self::Capture if settings.note_edge_open_delay_enabled => {
+                settings.note_edge_open_delay_ms
+            }
+            _ => settings.edge_reaction_time_ms,
+        };
+
+        Duration::from_millis(delay_ms)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MonitorBounds {
     pub x: i32,
@@ -126,7 +155,7 @@ impl EdgeDetector {
     async fn poll_loop(&self, app: AppHandle) {
         let poll_interval = Duration::from_millis(EDGE_POLL_INTERVAL_MS);
         let mut trigger_start: Option<Instant> = None;
-        let mut trigger_target: Option<&'static str> = None;
+        let mut trigger_target: Option<EdgeTarget> = None;
 
         log::info!("Edge detection polling started");
 
@@ -147,7 +176,6 @@ impl EdgeDetector {
                 continue;
             }
 
-            let trigger_delay = Duration::from_millis(settings.edge_reaction_time_ms);
             let edge_zone = EDGE_TRIGGER_ZONE_PX;
             let (at_left_edge, at_right_edge) = if let Some(m) = current_monitor {
                 (
@@ -171,9 +199,9 @@ impl EdgeDetector {
                 && !self.is_capture_in_cooldown().await;
 
             let edge_target = if can_show_reader {
-                Some("show_reader")
+                Some(EdgeTarget::Reader)
             } else if can_show_capture {
-                Some("show_capture")
+                Some(EdgeTarget::Capture)
             } else {
                 None
             };
@@ -182,7 +210,7 @@ impl EdgeDetector {
                 if trigger_start.is_none() || trigger_target != Some(target) {
                     trigger_start = Some(Instant::now());
                     trigger_target = Some(target);
-                } else if trigger_start.unwrap().elapsed() >= trigger_delay {
+                } else if trigger_start.unwrap().elapsed() >= target.trigger_delay(&settings) {
                     if !modifiers_match(&settings.edge_modifier_keys) {
                         trigger_start = None;
                         trigger_target = None;
@@ -195,8 +223,12 @@ impl EdgeDetector {
                         continue;
                     }
 
-                    if let Err(error) = app.emit(target, ()) {
-                        log::warn!("Failed to emit edge event {}: {}", target, error);
+                    if let Err(error) = app.emit(target.event_name(), ()) {
+                        log::warn!(
+                            "Failed to emit edge event {}: {}",
+                            target.event_name(),
+                            error
+                        );
                     }
                     trigger_start = None;
                     trigger_target = None;
@@ -296,7 +328,9 @@ fn get_mouse_position() -> (i32, i32) {
 /// Get primary screen bounds using macOS Core Graphics
 fn get_primary_screen_bounds() -> ScreenBounds {
     let bounds = get_primary_monitor_bounds();
-    ScreenBounds { width: bounds.width }
+    ScreenBounds {
+        width: bounds.width,
+    }
 }
 
 fn get_primary_monitor_bounds() -> MonitorBounds {

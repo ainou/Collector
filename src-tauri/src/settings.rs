@@ -100,6 +100,10 @@ pub struct Settings {
     pub edge_detection_enabled: bool,
     #[serde(default = "default_reaction_time_ms")]
     pub edge_reaction_time_ms: u64,
+    #[serde(default = "default_false")]
+    pub note_edge_open_delay_enabled: bool,
+    #[serde(default = "default_edge_open_delay_ms")]
+    pub note_edge_open_delay_ms: u64,
     #[serde(default)]
     pub edge_modifier_keys: Vec<String>,
     #[serde(default)]
@@ -120,6 +124,10 @@ pub struct Settings {
     pub reader_shortcut_closes_window: bool,
     #[serde(default = "default_true")]
     pub reader_edge_enabled: bool,
+    #[serde(default = "default_false")]
+    pub reader_edge_open_delay_enabled: bool,
+    #[serde(default = "default_edge_open_delay_ms")]
+    pub reader_edge_open_delay_ms: u64,
     #[serde(default = "default_true")]
     pub reader_hide_frontmatter: bool,
     #[serde(default = "default_true")]
@@ -173,6 +181,10 @@ fn default_false() -> bool {
 
 fn default_reaction_time_ms() -> u64 {
     50
+}
+
+fn default_edge_open_delay_ms() -> u64 {
+    1000
 }
 
 fn default_vault_path() -> String {
@@ -298,6 +310,69 @@ fn is_safe_filename_template(template: &str) -> bool {
         && !template.contains("..")
 }
 
+fn normalize_relative_vault_path(path: &str) -> String {
+    path.trim()
+        .replace('\\', "/")
+        .split('/')
+        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn relative_path_from_matching_vault_dir(path: &str, vault_path: &str) -> Option<String> {
+    let vault_dir = Path::new(vault_path).file_name()?.to_str()?;
+    let normalized_path = path.trim().replace('\\', "/");
+    let segments = normalized_path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+
+    let vault_index = segments
+        .iter()
+        .rposition(|segment| segment.eq_ignore_ascii_case(vault_dir))?;
+
+    if vault_index + 1 >= segments.len() {
+        return None;
+    }
+
+    let relative = segments[vault_index + 1..].join("/");
+    let normalized = normalize_relative_vault_path(&relative);
+
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
+fn normalize_pinned_note_path(path: &str, vault_path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let candidate = PathBuf::from(trimmed);
+    if !candidate.is_absolute() {
+        return normalize_relative_vault_path(trimmed);
+    }
+
+    let vault_root = fs::canonicalize(vault_path).unwrap_or_else(|_| PathBuf::from(vault_path));
+    if let Ok(relative) = candidate.strip_prefix(&vault_root) {
+        let normalized = normalize_relative_vault_path(&relative.to_string_lossy());
+        if !normalized.is_empty() {
+            return normalized;
+        }
+    }
+
+    if let Some(relative) =
+        relative_path_from_matching_vault_dir(trimmed, &vault_root.to_string_lossy())
+    {
+        return relative;
+    }
+
+    trimmed.replace('\\', "/")
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -326,6 +401,8 @@ impl Default for Settings {
             compression_max_kb: 200,
             edge_detection_enabled: true,
             edge_reaction_time_ms: default_reaction_time_ms(),
+            note_edge_open_delay_enabled: default_false(),
+            note_edge_open_delay_ms: default_edge_open_delay_ms(),
             edge_modifier_keys: Vec::new(),
             edge_excluded_apps: Vec::new(),
             notes_folder: default_notes_folder(),
@@ -336,6 +413,8 @@ impl Default for Settings {
             reader_shortcut: default_reader_shortcut(),
             reader_shortcut_closes_window: default_false(),
             reader_edge_enabled: default_true(),
+            reader_edge_open_delay_enabled: default_false(),
+            reader_edge_open_delay_ms: default_edge_open_delay_ms(),
             reader_hide_frontmatter: default_true(),
             reader_hide_dataview: default_true(),
             reader_hide_obsidian_comments: default_true(),
@@ -358,6 +437,20 @@ impl Default for Settings {
 }
 
 impl Settings {
+    pub(crate) fn normalize_pinned_note_paths(&mut self) -> bool {
+        let mut changed = false;
+
+        for pinned_note in &mut self.pinned_notes {
+            let normalized = normalize_pinned_note_path(&pinned_note.path, &self.vault_path);
+            if pinned_note.path != normalized {
+                pinned_note.path = normalized;
+                changed = true;
+            }
+        }
+
+        changed
+    }
+
     pub fn config_path() -> Result<PathBuf, String> {
         let config_dir =
             dirs::config_dir().ok_or_else(|| "Could not find config directory".to_string())?;
@@ -385,6 +478,8 @@ impl Settings {
                     Ok(defaults)
                 })?;
 
+            let mut needs_save = false;
+
             // Migration: convert old daily_note_path to new fields.
             if !settings.daily_note_path.is_empty() && settings.daily_note_folder.is_empty() {
                 let path = &settings.daily_note_path;
@@ -407,12 +502,17 @@ impl Settings {
                 );
 
                 settings.daily_note_path = String::new();
+                needs_save = true;
+            }
 
+            if settings.normalize_pinned_note_paths() {
+                log::info!("Migrated pinned note paths to vault-relative form");
+                needs_save = true;
+            }
+
+            if needs_save {
                 if let Err(save_error) = settings.save() {
-                    log::warn!(
-                        "Failed to persist migrated daily note settings: {}",
-                        save_error
-                    );
+                    log::warn!("Failed to persist migrated settings: {}", save_error);
                 }
             }
 
@@ -473,6 +573,14 @@ impl Settings {
 
         if self.edge_reaction_time_ms < 50 || self.edge_reaction_time_ms > 1000 {
             return Err("edge_reaction_time_ms must be between 50 and 1000".to_string());
+        }
+
+        if self.note_edge_open_delay_ms < 50 || self.note_edge_open_delay_ms > 10000 {
+            return Err("note_edge_open_delay_ms must be between 50 and 10000".to_string());
+        }
+
+        if self.reader_edge_open_delay_ms < 50 || self.reader_edge_open_delay_ms > 10000 {
+            return Err("reader_edge_open_delay_ms must be between 50 and 10000".to_string());
         }
 
         if self.border_radius > 30 {
@@ -583,6 +691,10 @@ impl Settings {
             if pinned_note.path.trim().is_empty() {
                 return Err("pinned_notes entries must include a path".to_string());
             }
+
+            if !is_safe_relative_path(&pinned_note.path) {
+                return Err("pinned_notes entries must stay inside the vault".to_string());
+            }
         }
 
         if self.window_transparency > 100 {
@@ -636,6 +748,72 @@ mod tests {
         let settings = Settings {
             vault_path: "/tmp/vault".to_string(),
             daily_note_format: "../outside".to_string(),
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_note_edge_delay_below_minimum() {
+        let settings = Settings {
+            note_edge_open_delay_ms: 25,
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_reader_edge_delay_above_maximum() {
+        let settings = Settings {
+            reader_edge_open_delay_ms: 20000,
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn migrates_absolute_pinned_note_path_inside_current_vault() {
+        let mut settings = Settings {
+            vault_path: "/tmp/Vault".to_string(),
+            pinned_notes: vec![PinnedNote {
+                path: "/tmp/Vault/Folder/Note.md".to_string(),
+                label: String::new(),
+                icon: String::new(),
+            }],
+            ..Default::default()
+        };
+
+        assert!(settings.normalize_pinned_note_paths());
+        assert_eq!(settings.pinned_notes[0].path, "Folder/Note.md");
+    }
+
+    #[test]
+    fn migrates_absolute_pinned_note_path_by_vault_dir_name() {
+        let mut settings = Settings {
+            vault_path: "/new/location/Vault".to_string(),
+            pinned_notes: vec![PinnedNote {
+                path: "/old/location/Vault/Folder/Note.md".to_string(),
+                label: String::new(),
+                icon: String::new(),
+            }],
+            ..Default::default()
+        };
+
+        assert!(settings.normalize_pinned_note_paths());
+        assert_eq!(settings.pinned_notes[0].path, "Folder/Note.md");
+    }
+
+    #[test]
+    fn rejects_absolute_pinned_note_path_on_validate() {
+        let settings = Settings {
+            pinned_notes: vec![PinnedNote {
+                path: "/tmp/Vault/Folder/Note.md".to_string(),
+                label: String::new(),
+                icon: String::new(),
+            }],
             ..Default::default()
         };
 

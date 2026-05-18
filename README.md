@@ -29,6 +29,17 @@ Collector is a macOS menu bar app for fast text and image capture into Obsidian.
 - Content filters: optionally hide frontmatter, Dataview blocks, inline fields, HTML, and Obsidian comments
 - Reader image import: drop or paste images directly into the Reader using the same compression settings as the capture window
 
+### Additions and Fixes in 1.1.2
+**Fixes**
+- Pinned Reader notes are now stored as vault-relative paths, so they keep working after moving the vault
+- Existing pinned note paths are migrated automatically from absolute paths where possible
+- The Save button in Settings is visible again
+- Open delay inputs in Settings now keep the `ms` label aligned correctly
+
+**New**
+- Separate open delay controls for the Note Window and Reader Window
+- Activation settings were simplified by removing the old global reaction time slider from the UI
+
 ### Additions and Fixes in 1.1.1
 **Fixes**
 - Daily note folder paths now support date placeholders (e.g. Journal/YYYY/MM)

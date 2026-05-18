@@ -159,8 +159,17 @@
       const paths = Array.isArray(selected) ? selected : [selected];
       const existing = normalizePinnedNotes(settings.pinned_notes);
       const existingByPath = new Set(existing.map((note) => note.path));
+      let skippedOutsideVault = false;
       const additions = paths
-        .filter((path) => !existingByPath.has(path))
+        .map((path) => toRelativeVaultPath(path))
+        .filter((path) => {
+          if (!path) {
+            skippedOutsideVault = true;
+            return false;
+          }
+
+          return !existingByPath.has(path);
+        })
         .map((path) => ({
           path,
           label: getFilename(path),
@@ -169,6 +178,10 @@
 
       settings.pinned_notes = [...existing, ...additions];
       settings = { ...settings };
+
+      if (skippedOutsideVault) {
+        showStatus("Pinned notes must be inside the current vault", "error");
+      }
     }
   }
 
@@ -193,7 +206,34 @@
   }
 
   function getFilename(path) {
-    return path.split("/").pop()?.replace(/\.md$/i, "") || path;
+    return (
+      path.replace(/\\/g, "/").split("/").pop()?.replace(/\.md$/i, "") || path
+    );
+  }
+
+  function normalizeComparablePath(path = "") {
+    return path.replace(/\\/g, "/").replace(/\/+$/, "");
+  }
+
+  function toRelativeVaultPath(path = "") {
+    const normalizedPath = normalizeComparablePath(path.trim());
+    const normalizedVaultPath = normalizeComparablePath(
+      settings.vault_path ?? "",
+    );
+
+    if (!normalizedPath || !normalizedVaultPath) {
+      return "";
+    }
+
+    if (normalizedPath === normalizedVaultPath) {
+      return "";
+    }
+
+    if (normalizedPath.startsWith(`${normalizedVaultPath}/`)) {
+      return normalizedPath.slice(normalizedVaultPath.length + 1);
+    }
+
+    return "";
   }
 
   function modifierLabel(mod) {
@@ -248,6 +288,21 @@
     settings = { ...settings };
   }
 
+  function normalizeDelayValue(value, fallback = 1000) {
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(10000, Math.max(50, Math.round(parsed)));
+  }
+
+  function normalizeDelayField(field, fallback = 1000) {
+    settings[field] = normalizeDelayValue(settings[field], fallback);
+    settings = { ...settings };
+  }
+
   async function handleSave() {
     isSaving = true;
 
@@ -255,6 +310,12 @@
       const payload = {
         ...settings,
         pinned_notes: normalizePinnedNotes(settings.pinned_notes),
+        note_edge_open_delay_ms: normalizeDelayValue(
+          settings.note_edge_open_delay_ms,
+        ),
+        reader_edge_open_delay_ms: normalizeDelayValue(
+          settings.reader_edge_open_delay_ms,
+        ),
       };
 
       await invoke("save_settings", { newSettings: payload });
@@ -813,7 +874,8 @@
               <div class="field-label">Pinned Notes</div>
               <small
                 >These notes appear as tabs in the left reader panel. The Daily
-                Note is always included automatically.</small
+                Note is always included automatically. Paths are stored relative
+                to the current vault.</small
               >
 
               {#if normalizePinnedNotes(settings.pinned_notes).length > 0}
@@ -981,25 +1043,77 @@
             </div>
 
             <div class="field">
-              <label for="edge_reaction_time_ms">
-                Reaction Time: {settings.edge_reaction_time_ms ?? 50}ms
-              </label>
-              <input
-                type="range"
-                id="edge_reaction_time_ms"
-                bind:value={settings.edge_reaction_time_ms}
-                min="50"
-                max="1000"
-                step="50"
-              />
-              <div class="range-labels">
-                <span>Instant (50ms)</span>
-                <span>Slow (1000ms)</span>
-              </div>
+              <div class="field-label">Window-specific Open Delay</div>
               <small>
-                How long the cursor must stay at the edge before the panel
-                opens. Increase to avoid accidental triggers.
+                Set a separate delay for each window. If disabled, the standard
+                edge trigger timing is used.
               </small>
+
+              <div class="delay-grid">
+                <div class="delay-card">
+                  <div class="delay-card-title">Note Window</div>
+                  <div class="delay-toggle-row">
+                    <label class="checkbox compact-checkbox">
+                      <input
+                        type="checkbox"
+                        bind:checked={settings.note_edge_open_delay_enabled}
+                      />
+                      Open Delay
+                    </label>
+
+                    {#if settings.note_edge_open_delay_enabled}
+                      <label class="delay-input">
+                        <input
+                          type="number"
+                          bind:value={settings.note_edge_open_delay_ms}
+                          min="50"
+                          max="10000"
+                          step="50"
+                          on:blur={() =>
+                            normalizeDelayField("note_edge_open_delay_ms")}
+                        />
+                        <span>ms</span>
+                      </label>
+                    {/if}
+                  </div>
+                  <small>
+                    Wait this long before the note window opens when touching
+                    the edge.
+                  </small>
+                </div>
+
+                <div class="delay-card">
+                  <div class="delay-card-title">Reader Window</div>
+                  <div class="delay-toggle-row">
+                    <label class="checkbox compact-checkbox">
+                      <input
+                        type="checkbox"
+                        bind:checked={settings.reader_edge_open_delay_enabled}
+                      />
+                      Open Delay
+                    </label>
+
+                    {#if settings.reader_edge_open_delay_enabled}
+                      <label class="delay-input">
+                        <input
+                          type="number"
+                          bind:value={settings.reader_edge_open_delay_ms}
+                          min="50"
+                          max="10000"
+                          step="50"
+                          on:blur={() =>
+                            normalizeDelayField("reader_edge_open_delay_ms")}
+                        />
+                        <span>ms</span>
+                      </label>
+                    {/if}
+                  </div>
+                  <small>
+                    Wait this long before the reader opens when touching the
+                    edge.
+                  </small>
+                </div>
+              </div>
             </div>
 
             <div class="field">
@@ -1391,6 +1505,62 @@
     margin-top: 6px;
   }
 
+  .delay-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .delay-card {
+    padding: 12px;
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 10px;
+    background: rgba(248, 250, 252, 0.72);
+  }
+
+  .delay-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 8px;
+  }
+
+  .delay-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .field label.compact-checkbox {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+  }
+
+  .compact-checkbox {
+    margin-bottom: 0;
+  }
+
+  .field label.delay-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+  }
+
+  .delay-input input {
+    width: 110px;
+    margin: 0;
+  }
+
+  .delay-input span {
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
   .modifier-checkbox {
     display: flex;
     align-items: center;
@@ -1408,14 +1578,6 @@
   .modifier-checkbox:has(input:checked) {
     border-color: #8b5cf6;
     background: rgba(139, 92, 246, 0.06);
-  }
-
-  .range-labels {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 2px;
-    color: #999;
-    font-size: 10px;
   }
 
   .exclusion-list {
@@ -1658,19 +1820,32 @@
   }
 
   button.primary {
-    background: linear-gradient(135deg, var(--accent-color) 0%, #7c3aed 100%);
+    background: linear-gradient(
+      135deg,
+      var(--accent-color, #8b5cf6) 0%,
+      #7c3aed 100%
+    );
     color: white;
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-color) 25%, transparent);
+    border: 1px solid color-mix(
+      in srgb,
+      var(--accent-color, #8b5cf6) 35%,
+      transparent
+    );
+    box-shadow: 0 2px 8px
+      color-mix(in srgb, var(--accent-color, #8b5cf6) 25%, transparent);
   }
 
   button.primary:hover:not(:disabled) {
     background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-color) 30%, transparent);
+    box-shadow: 0 4px 12px
+      color-mix(in srgb, var(--accent-color, #8b5cf6) 30%, transparent);
     transform: translateY(-1px);
   }
 
   button.primary:disabled {
-    opacity: 0.5;
+    opacity: 0.75;
+    background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+    color: rgba(255, 255, 255, 0.96);
     cursor: not-allowed;
   }
 
@@ -1846,6 +2021,15 @@
     .settings-content {
       overflow: visible;
       padding-right: 0;
+    }
+
+    .delay-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .delay-toggle-row {
+      align-items: flex-start;
+      flex-direction: column;
     }
   }
 </style>

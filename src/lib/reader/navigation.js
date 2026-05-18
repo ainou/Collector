@@ -62,6 +62,8 @@ export function navigateToWikilink(
     return { action: "noop" };
   }
 
+  const notePath = note.relative_path ?? note.path;
+
   if (isObsidianOnlyPath(note.path) || isObsidianOnlyPath(note.relative_path)) {
     return { action: "openInObsidian", note };
   }
@@ -69,7 +71,7 @@ export function navigateToWikilink(
   const openNewTab = forceNewTab || currentTab.isPinned;
 
   if (openNewTab) {
-    const existingIndex = tabs.findIndex((tab) => tab.path === note.path);
+    const existingIndex = tabs.findIndex((tab) => tab.path === notePath);
     if (existingIndex >= 0) {
       return { action: "activateExisting", index: existingIndex, note };
     }

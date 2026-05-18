@@ -150,6 +150,10 @@
     }, duration);
   }
 
+  function getVaultNoteTabPath(note = {}) {
+    return note.relative_path ?? note.path ?? "";
+  }
+
   function closeAutocomplete() {
     showAutocomplete = false;
     autocompleteIndex = 0;
@@ -609,7 +613,7 @@
   function createOpenedNoteTab(note, history = []) {
     return createTab({
       kind: "opened",
-      path: note.path,
+      path: getVaultNoteTabPath(note),
       label: note.name,
       isPinned: false,
       history,
@@ -654,7 +658,7 @@
 
       try {
         await openInObsidian(
-          intent.note.path,
+          getVaultNoteTabPath(intent.note),
           appSettings.vault_name ?? "Vault",
           appSettings.vault_path ?? "",
         );
@@ -678,7 +682,7 @@
     if (intent.action === "replaceCurrent") {
       await forceSave(false);
       replaceTab(activeTabIndex, {
-        path: intent.note.path,
+        path: getVaultNoteTabPath(intent.note),
         label: intent.note.name,
         content: "",
         loaded: false,
@@ -698,7 +702,9 @@
     saveScrollPosition();
     await forceSave(false);
     const previousPath = currentTab.history[currentTab.history.length - 1];
-    const note = vaultNotes.find((entry) => entry.path === previousPath);
+    const note = vaultNotes.find(
+      (entry) => getVaultNoteTabPath(entry) === previousPath,
+    );
 
     replaceTab(activeTabIndex, {
       path: previousPath,

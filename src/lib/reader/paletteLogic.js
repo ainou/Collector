@@ -10,7 +10,8 @@ export function filterPaletteNotes(vaultNotes = [], query = "") {
 }
 
 export function getOpenVaultNoteIntent(note, tabs = []) {
-  const existingIndex = tabs.findIndex((tab) => tab.path === note.path);
+  const notePath = note.relative_path ?? note.path;
+  const existingIndex = tabs.findIndex((tab) => tab.path === notePath);
   if (existingIndex >= 0) {
     return { action: "activateExisting", index: existingIndex };
   }

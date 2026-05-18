@@ -212,10 +212,11 @@ async fn load_settings(state: tauri::State<'_, AppState>) -> Result<Settings, St
 
 #[tauri::command]
 async fn save_settings(
-    new_settings: Settings,
+    mut new_settings: Settings,
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
+    new_settings.normalize_pinned_note_paths();
     new_settings.validate().map_err(|e| {
         log::error!("Settings validation failed: {}", e);
         e
