@@ -23,6 +23,7 @@ export const defaultSettings = {
   entry_header: '#### HH:mm',
   global_shortcut: 'Cmd+Shift+N',
   global_shortcut_closes_window: false,
+  global_close_shortcut: '',
 
   compression_max_kb: 200,
   edge_detection_enabled: true,
@@ -46,6 +47,7 @@ export const defaultSettings = {
   append_to_note_shortcut: 'Cmd+Option+Enter',
   reader_shortcut: 'Cmd+Shift+R',
   reader_shortcut_closes_window: false,
+  reader_close_shortcut: '',
   reader_edge_enabled: true,
   reader_edge_open_delay_enabled: false,
   reader_edge_open_delay_ms: 1000,

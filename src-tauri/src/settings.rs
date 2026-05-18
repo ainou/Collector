@@ -93,6 +93,8 @@ pub struct Settings {
     pub global_shortcut: String,
     #[serde(default = "default_false")]
     pub global_shortcut_closes_window: bool,
+    #[serde(default)]
+    pub global_close_shortcut: String,
     #[serde(default = "default_capture_text_shortcut")]
     pub capture_text_shortcut: String,
     pub compression_max_kb: u32,
@@ -122,6 +124,8 @@ pub struct Settings {
     pub reader_shortcut: String,
     #[serde(default = "default_false")]
     pub reader_shortcut_closes_window: bool,
+    #[serde(default)]
+    pub reader_close_shortcut: String,
     #[serde(default = "default_true")]
     pub reader_edge_enabled: bool,
     #[serde(default = "default_false")]
@@ -397,6 +401,7 @@ impl Default for Settings {
             entry_header: "#### HH:mm".to_string(),
             global_shortcut: "Cmd+Shift+N".to_string(),
             global_shortcut_closes_window: default_false(),
+            global_close_shortcut: String::new(),
             capture_text_shortcut: default_capture_text_shortcut(),
             compression_max_kb: 200,
             edge_detection_enabled: true,
@@ -412,6 +417,7 @@ impl Default for Settings {
             pinned_notes: Vec::new(),
             reader_shortcut: default_reader_shortcut(),
             reader_shortcut_closes_window: default_false(),
+            reader_close_shortcut: String::new(),
             reader_edge_enabled: default_true(),
             reader_edge_open_delay_enabled: default_false(),
             reader_edge_open_delay_ms: default_edge_open_delay_ms(),
@@ -679,12 +685,42 @@ impl Settings {
             crate::shortcuts::validate_shortcut(&self.capture_text_shortcut)?;
         }
 
+        if !self.global_close_shortcut.trim().is_empty() {
+            crate::shortcuts::validate_shortcut(&self.global_close_shortcut)?;
+        }
+
         if !self.save_as_note_shortcut.trim().is_empty() {
             crate::shortcuts::validate_shortcut(&self.save_as_note_shortcut)?;
         }
 
         if !self.reader_shortcut.trim().is_empty() {
             crate::shortcuts::validate_shortcut(&self.reader_shortcut)?;
+        }
+
+        if !self.reader_close_shortcut.trim().is_empty() {
+            crate::shortcuts::validate_shortcut(&self.reader_close_shortcut)?;
+        }
+
+        if !self.global_shortcut_closes_window
+            && !self.global_shortcut.trim().is_empty()
+            && !self.global_close_shortcut.trim().is_empty()
+            && crate::shortcuts::normalize_shortcut(&self.global_shortcut)
+                == crate::shortcuts::normalize_shortcut(&self.global_close_shortcut)
+        {
+            return Err(
+                "note window open and close shortcuts must be different unless one shortcut is used for both".to_string(),
+            );
+        }
+
+        if !self.reader_shortcut_closes_window
+            && !self.reader_shortcut.trim().is_empty()
+            && !self.reader_close_shortcut.trim().is_empty()
+            && crate::shortcuts::normalize_shortcut(&self.reader_shortcut)
+                == crate::shortcuts::normalize_shortcut(&self.reader_close_shortcut)
+        {
+            return Err(
+                "reader open and close shortcuts must be different unless one shortcut is used for both".to_string(),
+            );
         }
 
         for pinned_note in &self.pinned_notes {
@@ -768,6 +804,30 @@ mod tests {
     fn rejects_reader_edge_delay_above_maximum() {
         let settings = Settings {
             reader_edge_open_delay_ms: 20000,
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_note_window_open_and_close_shortcuts_without_toggle() {
+        let settings = Settings {
+            global_shortcut: "Cmd+Shift+N".to_string(),
+            global_close_shortcut: "CommandOrControl+Shift+N".to_string(),
+            global_shortcut_closes_window: false,
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_duplicate_reader_open_and_close_shortcuts_without_toggle() {
+        let settings = Settings {
+            reader_shortcut: "Cmd+Shift+R".to_string(),
+            reader_close_shortcut: "CommandOrControl+Shift+R".to_string(),
+            reader_shortcut_closes_window: false,
             ..Default::default()
         };
 
