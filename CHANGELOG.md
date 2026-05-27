@@ -5,28 +5,27 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.1.2] - 2026-05-26
-
+## [1.2.0] - 2026-05-27
 ### Fixed
 - Pinned Reader notes are now stored as vault-relative paths, so they keep working after moving the vault
 - Image folder is now stored as a vault-relative path; existing absolute paths are migrated automatically where possible
-- `Copy Text to Collector` no longer inserts stale clipboard content when nothing is selected
-- `Copy Text to Collector` now shows proper feedback when Accessibility permission is missing
-- Command Palette and Append Picker open faster; list scrolling no longer resets selection to the top on keyboard navigation
+- Copy Text to Collector no longer inserts stale clipboard content when nothing is selected
+- Copy Text to Collector now shows proper feedback when Accessibility permission is missing
+- Append Picker: keyboard navigation no longer resets selection to the top when the list scrolls
 - Save button in Settings now works correctly in all cases
-- Open delay inputs in Settings keep the `ms` label aligned correctly
+- Open delay inputs in Settings keep the ms label aligned correctly
 
 ### Added
+- Command Palette — open any note in your vault with Cmd+P or Cmd+K directly from the capture window
+- Append to Note — two-step flow: choose any note in your vault, then append at the end or insert after a specific heading
 - Separate open delay controls for the Note Window and Reader Window
 - Global shortcuts for the Note Window and Reader Window can now optionally close the window — with the same shortcut or a separate one
-- Saving as a new note uses a leading `# Heading` as the note title and filename
-- `Append to Note` is now a two-step flow: choose the note first, then append at the end or insert after a heading
-- Entry header now supports 12-hour time format: `h` / `hh` (12h), `a` / `A` (am/pm)
-- Settings redesigned into clearer cards, grouped more consistently
-- Activation settings simplified by removing the old global reaction time slider
-- Exclude Apps for activation
-- Opening delay controls
-
+- Saving as a new note uses a leading # Heading as the note title and filename
+- Entry header now supports 12-hour time format: h / hh (12h), a / A (am/pm)
+- Note filename template now also supports 12-hour time tokens
+- Update notifications: tray menu shows a notification when a new version is available on GitHub
+- Settings redesigned into a cleaner layout
+- Activation: separate open delay controls and app exclusions are now configurable in Settings
 ---
 
 ## [1.1.1] - 2025
