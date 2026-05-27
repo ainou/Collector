@@ -1,12 +1,9 @@
 <script>
     import { open } from "@tauri-apps/plugin-dialog";
+    import { normalizeComparablePath } from "./path-utils.js";
 
     export let settings;
     export let showStatus;
-
-    function normalizeComparablePath(path = "") {
-        return path.replace(/\\/g, "/").replace(/\/+$/, "");
-    }
 
     function toRelativeVaultDirectoryPath(path = "") {
         const normalizedPath = normalizeComparablePath(path.trim());
