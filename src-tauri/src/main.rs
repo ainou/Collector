@@ -955,10 +955,15 @@ fn main() {
                 }
             });
 
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let menu = create_tray_menu(&app_handle);
             let settings_for_tray = settings.clone();
             let _tray = TrayIconBuilder::with_id("main")
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(tauri::image::Image::from_bytes(
+                    include_bytes!("../icons/tray-icon.png")
+                ).unwrap())
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "quick_capture" => {
