@@ -7,6 +7,7 @@
         getReaderIconComponent,
         readerIconOptions,
     } from "./lib/reader-icons.js";
+    import PanelImages from "./lib/settings/PanelImages.svelte";
     import PanelLook from "./lib/settings/PanelLook.svelte";
     import PanelShortcuts from "./lib/settings/PanelShortcuts.svelte";
     import { defaultSettings } from "./lib/stores.js";
@@ -137,30 +138,6 @@
         }
     }
 
-    async function pickScreenshotPath() {
-        const selected = await open({
-            directory: true,
-            multiple: false,
-            defaultPath:
-                resolveVaultSettingPath(settings.screenshot_path) ||
-                settings.vault_path ||
-                undefined,
-        });
-        if (selected) {
-            const relative = toRelativeVaultDirectoryPath(selected);
-            if (!relative) {
-                showStatus(
-                    "Image folder must be inside the current vault",
-                    "error",
-                );
-                return;
-            }
-
-            settings.screenshot_path = relative;
-            settings = { ...settings };
-        }
-    }
-
     async function addPinnedNotes() {
         const selected = await open({
             multiple: true,
@@ -251,55 +228,6 @@
         }
 
         return "";
-    }
-
-    function toRelativeVaultDirectoryPath(path = "") {
-        const normalizedPath = normalizeComparablePath(path.trim());
-        const normalizedVaultPath = normalizeComparablePath(
-            settings.vault_path ?? "",
-        );
-
-        if (!normalizedPath || !normalizedVaultPath) {
-            return "";
-        }
-
-        if (normalizedPath === normalizedVaultPath) {
-            return ".";
-        }
-
-        if (normalizedPath.startsWith(`${normalizedVaultPath}/`)) {
-            return normalizedPath.slice(normalizedVaultPath.length + 1);
-        }
-
-        return "";
-    }
-
-    function resolveVaultSettingPath(path = "") {
-        const rawPath = path.trim();
-        const normalizedVaultPath = normalizeComparablePath(
-            settings.vault_path ?? "",
-        );
-
-        if (!rawPath) {
-            return normalizedVaultPath || "";
-        }
-
-        if (
-            rawPath.startsWith("/") ||
-            /^[A-Za-z]:[\\/]/.test(rawPath)
-        ) {
-            return rawPath;
-        }
-
-        if (!normalizedVaultPath) {
-            return rawPath;
-        }
-
-        if (rawPath === ".") {
-            return normalizedVaultPath;
-        }
-
-        return `${normalizedVaultPath}/${normalizeComparablePath(rawPath)}`;
     }
 
     function modifierLabel(mod) {
@@ -583,100 +511,7 @@
                         </section>
                     </div>
                 {:else if activePanel === "images"}
-                    <div class="settings-panel">
-                        <section class="panel-intro">
-                            <h2>Images</h2>
-                            <p class="section-description">
-                                Control where screenshots are stored and how new
-                                image embeds are created.
-                            </p>
-                        </section>
-
-                        <section>
-                            <h2>Storage</h2>
-                            <p class="section-description">
-                                Set the destination folder and filename pattern
-                                for captured images.
-                            </p>
-
-                            <div class="field">
-                                <label for="screenshot_path">Image Folder</label
-                                >
-                                <div class="path-picker">
-                                    <input
-                                        type="text"
-                                        id="screenshot_path"
-                                        bind:value={settings.screenshot_path}
-                                        placeholder="Grafiken/Screenshots"
-                                    />
-                                    <button
-                                        class="secondary"
-                                        on:click={pickScreenshotPath}
-                                        >Choose...</button
-                                    >
-                                </div>
-                                <small
-                                    >Relative path in the vault for saved
-                                    images (folder will be created
-                                    automatically)</small
-                                >
-                            </div>
-                            <div class="field">
-                                <label for="image_filename"
-                                    >Filename Template</label
-                                >
-                                <input
-                                    type="text"
-                                    id="image_filename"
-                                    bind:value={settings.image_filename}
-                                    placeholder="screenshot-YYYY-MM-DD-HHmmss"
-                                />
-                                <small>Supports: YYYY, MM, DD, HH, mm, ss</small
-                                >
-                            </div>
-                        </section>
-
-                        <section>
-                            <h2>Embed Defaults</h2>
-                            <p class="section-description">
-                                Tune compression and the default display width
-                                for new image links.
-                            </p>
-
-                            <div class="field">
-                                <label for="compression_max_kb"
-                                    >Max. Image Size (KB)</label
-                                >
-                                <input
-                                    type="number"
-                                    id="compression_max_kb"
-                                    bind:value={settings.compression_max_kb}
-                                    min="50"
-                                    max="1000"
-                                    step="50"
-                                />
-                                <small
-                                    >Images will be compressed to this size</small
-                                >
-                            </div>
-                            <div class="field">
-                                <label for="default_image_width"
-                                    >Default Image Width</label
-                                >
-                                <input
-                                    type="text"
-                                    id="default_image_width"
-                                    bind:value={settings.default_image_width}
-                                    placeholder="600"
-                                    inputmode="numeric"
-                                />
-                                <small
-                                    >Optional width in pixels for new image
-                                    links (leave empty for no width)</small
-                                >
-                            </div>
-                        </section>
-                    </div>
+                    <PanelImages bind:settings={settings} {showStatus} />
                 {:else if activePanel === "look"}
                     <PanelLook bind:settings={settings} {showStatus} />
                 {:else if activePanel === "note-window"}
@@ -1759,7 +1594,7 @@
         flex: 1;
     }
 
-    button {
+    :global(button) {
         padding: 8px 16px;
         border-radius: 6px;
         font-size: 13px;
@@ -1769,7 +1604,7 @@
         transition: all 0.2s ease;
     }
 
-    button.primary {
+    :global(button.primary) {
         background: linear-gradient(
             135deg,
             var(--accent-color, #8b5cf6) 0%,
@@ -1782,42 +1617,42 @@
             color-mix(in srgb, var(--accent-color, #8b5cf6) 25%, transparent);
     }
 
-    button.primary:hover:not(:disabled) {
+    :global(button.primary:hover:not(:disabled)) {
         background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
         box-shadow: 0 4px 12px
             color-mix(in srgb, var(--accent-color, #8b5cf6) 30%, transparent);
         transform: translateY(-1px);
     }
 
-    button.primary:disabled {
+    :global(button.primary:disabled) {
         opacity: 0.75;
         background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
         color: rgba(255, 255, 255, 0.96);
         cursor: not-allowed;
     }
 
-    button.secondary {
+    :global(button.secondary) {
         background: #e5e5e5;
         color: #333;
     }
 
-    button.secondary:hover {
+    :global(button.secondary:hover) {
         background: #d5d5d5;
     }
 
-    .path-picker {
+    :global(.path-picker) {
         display: flex;
         gap: 8px;
     }
 
-    .path-picker input {
+    :global(.path-picker input) {
         flex: 1;
         font-family: "SF Mono", Menlo, Monaco, monospace;
         font-size: 12px;
         background: #f9f9f9;
     }
 
-    .path-picker button {
+    :global(.path-picker button) {
         padding: 8px 16px;
         white-space: nowrap;
     }
