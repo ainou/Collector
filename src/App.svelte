@@ -1,4 +1,7 @@
 <script>
+    const ENABLE_DEMO_FAKE_BG = true; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
+    const DEMO_FAKE_BG = import.meta.env.DEV && ENABLE_DEMO_FAKE_BG;
+
     import { invoke } from "@tauri-apps/api/core";
     import { listen } from "@tauri-apps/api/event";
     import { onMount, onDestroy, tick } from "svelte";
@@ -744,7 +747,10 @@
         if (wikiAutocompleteOpen) {
             if (e.key === "ArrowDown") {
                 e.preventDefault();
-                wikiAutocompleteIndex = Math.min(wikiAutocompleteIndex + 1, wikiAutocompleteMatches.length - 1);
+                wikiAutocompleteIndex = Math.min(
+                    wikiAutocompleteIndex + 1,
+                    wikiAutocompleteMatches.length - 1,
+                );
                 return;
             }
             if (e.key === "ArrowUp") {
@@ -755,7 +761,9 @@
             if (e.key === "Enter" || e.key === "Tab") {
                 e.preventDefault();
                 if (wikiAutocompleteMatches[wikiAutocompleteIndex]) {
-                    insertWikilink(wikiAutocompleteMatches[wikiAutocompleteIndex]);
+                    insertWikilink(
+                        wikiAutocompleteMatches[wikiAutocompleteIndex],
+                    );
                 }
                 return;
             }
@@ -807,7 +815,11 @@
         const before = val.slice(0, cursor);
         const triggerIndex = before.lastIndexOf("[[");
 
-        if (triggerIndex === -1 || before.slice(triggerIndex + 2).includes("]]") || before.slice(triggerIndex + 2).includes("\n")) {
+        if (
+            triggerIndex === -1 ||
+            before.slice(triggerIndex + 2).includes("]]") ||
+            before.slice(triggerIndex + 2).includes("\n")
+        ) {
             closeWikiAutocomplete();
             return;
         }
@@ -861,11 +873,16 @@
 
         // Find which line the [[ anchor is on
         const textBefore = textareaRef.value.substring(0, wikiAnchorPos);
-        const lineNumber = textBefore.split('\n').length; // 1-indexed
+        const lineNumber = textBefore.split("\n").length; // 1-indexed
 
         return {
             left: taRect.left + paddingLeft,
-            top: taRect.top + paddingTop + (lineNumber - 1) * lineHeight - textareaRef.scrollTop + lineHeight,
+            top:
+                taRect.top +
+                paddingTop +
+                (lineNumber - 1) * lineHeight -
+                textareaRef.scrollTop +
+                lineHeight,
         };
     }
 
@@ -1241,6 +1258,7 @@
 
 <div
     class="capture-container"
+    class:demo-fake-bg={DEMO_FAKE_BG}
     class:dragging={isDragging}
     class:append-picker-open={showAppendPicker}
     style="
@@ -1360,7 +1378,10 @@
 
     {#if wikiAutocompleteOpen && wikiAutocompleteMatches.length > 0}
         {@const pos = getWikiDropdownPosition()}
-        <div class="wikilink-picker-position" style="left: {pos.left}px; top: {pos.top}px;">
+        <div
+            class="wikilink-picker-position"
+            style="left: {pos.left}px; top: {pos.top}px;"
+        >
             <WikilinkPicker
                 notes={wikiAutocompleteMatches}
                 selectedIndex={wikiAutocompleteIndex}
@@ -1768,7 +1789,7 @@
     }
     textarea::-webkit-scrollbar-thumb {
         background: rgba(0, 0, 0, 0.12);
-        border-radius: 3px;
+        border-radius: 5px;
     }
 
     .wikilink-picker-position {
@@ -1776,5 +1797,33 @@
         z-index: 200;
         min-width: 220px;
         max-width: 320px;
+    }
+
+    .capture-container.demo-fake-bg {
+        background:
+            radial-gradient(
+                circle at 18% 10%,
+                rgba(96, 165, 250, 0.13),
+                transparent 40%
+            ),
+            radial-gradient(
+                circle at 78% 18%,
+                rgba(139, 92, 246, 0.1),
+                transparent 44%
+            ),
+            radial-gradient(
+                circle at 52% 88%,
+                rgba(59, 130, 246, 0.1),
+                transparent 54%
+            ),
+            linear-gradient(
+                145deg,
+                rgba(25, 40, 54, 0.96),
+                rgba(31, 38, 55, 0.96) 48%,
+                rgba(24, 48, 52, 0.97)
+            );
+
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
     }
 </style>
