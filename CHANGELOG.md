@@ -28,6 +28,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Activation: separate open delay controls and app exclusions are now configurable in Settings
 ---
 
+## [1.2.1] - 2026-05-27
+
+### Fixed
+- Reader: active line no longer highlights the entire line,
+  only the cursor is shown
+
+---
+
 ## [1.1.1] - 2025
 
 ### Fixed

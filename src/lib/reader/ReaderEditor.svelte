@@ -779,11 +779,6 @@
     margin-left: -4px;
     padding-left: 4px;
     border-radius: 3px;
-    background: color-mix(
-      in srgb,
-      var(--accent-color, #8b5cf6) 10%,
-      transparent
-    );
   }
 
   .editor-scroll::-webkit-scrollbar {
