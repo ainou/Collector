@@ -194,7 +194,7 @@ fn default_edge_open_delay_ms() -> u64 {
 fn default_vault_path() -> String {
     dirs::home_dir()
         .map(|h| h.join("Vault").to_string_lossy().to_string())
-        .unwrap_or_else(|| "/Users/Vault".to_string())
+        .unwrap_or_else(|| String::new())
 }
 
 fn default_screenshot_path() -> String {
