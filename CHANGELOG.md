@@ -5,7 +5,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.1] - 2026-05-27
+
+### Fixed
+- Reader: active line no longer highlights the entire line — only the cursor is shown
+- Overlay styling unified across Command Palette, Append Picker, and Wikilink autocomplete (consistent typography, colors, and shadows)
+- Global CSS variables now load correctly in the Note Window, fixing path colors and other visual inconsistencies in overlays
+
+### Added
+- `[[` Wikilink autocomplete in the Note Window — type `[[` to search and insert vault links while capturing
+- Setting: toggle vault-relative paths in all note pickers (Command Palette, Append Picker, Wikilink autocomplete)
+- Setting: configure how many results are shown in note pickers (default: 20)
+
+---
+
 ## [1.2.0] - 2026-05-27
+
 ### Fixed
 - Pinned Reader notes are now stored as vault-relative paths, so they keep working after moving the vault
 - Image folder is now stored as a vault-relative path; existing absolute paths are migrated automatically where possible
@@ -26,6 +41,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Update notifications: tray menu shows a notification when a new version is available on GitHub
 - Settings redesigned into a less vibecoded and cleaner layout
 - Activation: separate open delay controls and app exclusions are now configurable in Settings
+
 ---
 
 ## [1.1.1] - 2025

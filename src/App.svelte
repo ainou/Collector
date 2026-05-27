@@ -4,7 +4,9 @@
     import { onMount, onDestroy, tick } from "svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import AppendToPicker from "./lib/reader/AppendToPicker.svelte";
+    import WikilinkPicker from "./lib/WikilinkPicker.svelte";
     import { filterPaletteNotes } from "./lib/reader/paletteLogic.js";
+    import { getAutocompleteResults } from "./lib/reader/autocomplete.js";
 
     let textareaRef;
     let content = "";
@@ -28,6 +30,11 @@
     let isTauri = false;
     let globalDragEnter;
     let globalDragOver;
+    let wikiAutocompleteOpen = false;
+    let wikiAutocompleteQuery = "";
+    let wikiAutocompleteIndex = 0;
+    let wikiAutocompleteMatches = [];
+    let wikiAnchorPos = 0;
     let globalDragLeave;
     let globalDrop;
 
@@ -45,10 +52,15 @@
         internal_link_color: "#a78bfa",
         external_link_color: "#60a5fa",
         entry_header: "#### HH:mm",
+        show_note_paths: true,
+        autocomplete_results: 20,
         save_to_daily_shortcut: "Cmd+Enter",
         save_as_note_shortcut: "Cmd+Shift+Enter",
         append_to_note_shortcut: "Cmd+Option+Enter",
     };
+
+    $: showNotePaths = appSettings?.show_note_paths ?? true;
+    $: autocompleteResults = appSettings?.autocomplete_results ?? 20;
 
     $: brightnessFilter = (() => {
         const b = appSettings.window_brightness;
@@ -358,6 +370,12 @@
                             entry_header:
                                 newSettings.entry_header ??
                                 appSettings.entry_header,
+                            show_note_paths:
+                                newSettings.show_note_paths ??
+                                appSettings.show_note_paths,
+                            autocomplete_results:
+                                newSettings.autocomplete_results ??
+                                appSettings.autocomplete_results,
                             save_to_daily_shortcut:
                                 newSettings.save_to_daily_shortcut ??
                                 appSettings.save_to_daily_shortcut,
@@ -394,6 +412,9 @@
                         external_link_color:
                             settings.external_link_color ?? "#60a5fa",
                         entry_header: settings.entry_header ?? "#### HH:mm",
+                        show_note_paths: settings.show_note_paths ?? true,
+                        autocomplete_results:
+                            settings.autocomplete_results ?? 20,
                         save_to_daily_shortcut:
                             settings.save_to_daily_shortcut ?? "Cmd+Enter",
                         save_as_note_shortcut:
@@ -720,6 +741,31 @@
     }
 
     async function handleKeydown(e) {
+        if (wikiAutocompleteOpen) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                wikiAutocompleteIndex = Math.min(wikiAutocompleteIndex + 1, wikiAutocompleteMatches.length - 1);
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                wikiAutocompleteIndex = Math.max(wikiAutocompleteIndex - 1, 0);
+                return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                if (wikiAutocompleteMatches[wikiAutocompleteIndex]) {
+                    insertWikilink(wikiAutocompleteMatches[wikiAutocompleteIndex]);
+                }
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                closeWikiAutocomplete();
+                return;
+            }
+        }
+
         if (e.metaKey && e.key === ",") {
             e.preventDefault();
             openSettings();
@@ -749,6 +795,86 @@
             handleClose();
             return;
         }
+    }
+
+    function handleWikiInput() {
+        if (!textareaRef) return;
+
+        const val = textareaRef.value;
+        const cursor = textareaRef.selectionStart;
+
+        // Look back from cursor for unmatched [[
+        const before = val.slice(0, cursor);
+        const triggerIndex = before.lastIndexOf("[[");
+
+        if (triggerIndex === -1 || before.slice(triggerIndex + 2).includes("]]") || before.slice(triggerIndex + 2).includes("\n")) {
+            closeWikiAutocomplete();
+            return;
+        }
+
+        const query = before.slice(triggerIndex + 2);
+        const results = getAutocompleteResults(
+            query,
+            appendPickerNotes,
+            autocompleteResults,
+        );
+
+        wikiAutocompleteQuery = query;
+        wikiAutocompleteMatches = results;
+        wikiAutocompleteOpen = results.length > 0;
+        wikiAutocompleteIndex = 0;
+        wikiAnchorPos = triggerIndex;
+    }
+
+    function insertWikilink(note) {
+        if (!textareaRef) return;
+
+        const val = textareaRef.value;
+        const cursor = textareaRef.selectionStart;
+        const queryLen = wikiAutocompleteQuery.length;
+        const anchor = cursor - queryLen - 2;
+
+        if (anchor < 0) return;
+
+        const before = val.slice(0, anchor);
+        const after = val.slice(cursor);
+        const insertion = `[[${note.name}]]`;
+        const newPos = before.length + insertion.length;
+
+        textareaRef.value = before + insertion + after;
+        textareaRef.selectionStart = newPos;
+        textareaRef.selectionEnd = newPos;
+        textareaRef.focus();
+
+        content = textareaRef.value;
+        closeWikiAutocomplete();
+    }
+
+    function getWikiDropdownPosition() {
+        if (!textareaRef) return { left: 0, top: 0 };
+
+        const taRect = textareaRef.getBoundingClientRect();
+        const style = getComputedStyle(textareaRef);
+        const lineHeight = parseFloat(style.lineHeight) || 24;
+        const paddingTop = parseFloat(style.paddingTop) || 12;
+        const paddingLeft = parseFloat(style.paddingLeft) || 16;
+
+        // Find which line the [[ anchor is on
+        const textBefore = textareaRef.value.substring(0, wikiAnchorPos);
+        const lineNumber = textBefore.split('\n').length; // 1-indexed
+
+        return {
+            left: taRect.left + paddingLeft,
+            top: taRect.top + paddingTop + (lineNumber - 1) * lineHeight - textareaRef.scrollTop + lineHeight,
+        };
+    }
+
+    function closeWikiAutocomplete() {
+        wikiAutocompleteOpen = false;
+        wikiAutocompleteQuery = "";
+        wikiAutocompleteMatches = [];
+        wikiAutocompleteIndex = 0;
+        wikiAnchorPos = 0;
     }
 
     async function openSettings() {
@@ -1199,6 +1325,8 @@
                 bind:this={textareaRef}
                 bind:value={content}
                 on:keydown={handleKeydown}
+                on:input={handleWikiInput}
+                on:blur={closeWikiAutocomplete}
                 on:drop={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1230,15 +1358,35 @@
         </div>
     {/if}
 
+    {#if wikiAutocompleteOpen && wikiAutocompleteMatches.length > 0}
+        {@const pos = getWikiDropdownPosition()}
+        <div class="wikilink-picker-position" style="left: {pos.left}px; top: {pos.top}px;">
+            <WikilinkPicker
+                notes={wikiAutocompleteMatches}
+                selectedIndex={wikiAutocompleteIndex}
+                showPaths={showNotePaths}
+                onSelect={(note) => insertWikilink(note)}
+                onHover={(index) => {
+                    wikiAutocompleteIndex = index;
+                }}
+            />
+        </div>
+    {/if}
+
     <AppendToPicker
         open={showAppendPicker}
         step={appendPickerStep}
         query={appendPickerQuery}
-        notes={filterPaletteNotes(appendPickerNotes, appendPickerQuery)}
+        notes={filterPaletteNotes(
+            appendPickerNotes,
+            appendPickerQuery,
+            autocompleteResults,
+        )}
         selectedIndex={appendPickerSelectedIndex}
         selectedNote={appendPickerSelectedNote}
         headings={appendPickerHeadings}
         headingIndex={appendPickerHeadingIndex}
+        showPaths={showNotePaths}
         bind:inputRef={appendPickerInputRef}
         on:queryChange={(e) => {
             appendPickerQuery = e.detail.target.value;
@@ -1621,5 +1769,12 @@
     textarea::-webkit-scrollbar-thumb {
         background: rgba(0, 0, 0, 0.12);
         border-radius: 3px;
+    }
+
+    .wikilink-picker-position {
+        position: fixed;
+        z-index: 200;
+        min-width: 220px;
+        max-width: 320px;
     }
 </style>
