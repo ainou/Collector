@@ -1,5 +1,5 @@
 <script>
-    const ENABLE_DEMO_FAKE_BG = true; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
+    const ENABLE_DEMO_FAKE_BG = false; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
     const DEMO_FAKE_BG = import.meta.env.DEV && ENABLE_DEMO_FAKE_BG;
 
     import { invoke } from "@tauri-apps/api/core";
@@ -653,6 +653,11 @@
         // Now that headings are loaded, transition to step 2
         appendPickerHeadings = loadedHeadings;
         appendPickerHeadingIndex = 0;
+        // setTimeout(0) gives WKWebView a single event-loop tick
+        // between loading headings and transitioning to step 2.
+        // Without this pause, the simultaneous Svelte DOM update
+        // and IPC completion cause WKWebView to freeze on macOS.
+        await new Promise(resolve => setTimeout(resolve, 0));
         appendPickerStep = 2;
     }
 
