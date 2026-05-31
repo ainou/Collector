@@ -133,12 +133,9 @@
     }
 
     $: if (open && step === 2) {
-        headingIndex;
-        headings.length;
-        void tick().then(() => {
+        setTimeout(() => {
             headingListRef?.focus({ preventScroll: true });
-            ensureSelectedHeadingVisible();
-        });
+        }, 0);
     }
 </script>
 
@@ -269,10 +266,8 @@
             var(--app-background, #1e1e2e) var(--app-transparency, 85%),
             transparent
         );
-        backdrop-filter: blur(var(--app-blur, 80px))
-            saturate(var(--app-saturation, 200%)) var(--app-brightness-filter);
-        -webkit-backdrop-filter: blur(var(--app-blur, 80px))
-            saturate(var(--app-saturation, 200%)) var(--app-brightness-filter);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
         color: var(--app-text-color, #ffffff);
         font-family: var(--app-font-family, var(--font-family));
         border: 1px solid rgba(255, 255, 255, 0.08);

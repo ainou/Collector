@@ -5,6 +5,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.2] - 2026-05-31
+
+### Fixed
+- Append to Note: selecting a note no longer freezes the capture
+  window on macOS (WKWebView timing issue during step 1 → step 2
+  transition)
+- Append to Note: keyboard navigation (arrow keys) now works
+  correctly in the heading picker
+
+---
+
 ## [1.2.1] - 2026-05-27
 
 ### Fixed
