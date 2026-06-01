@@ -19,6 +19,17 @@ Collector is a macOS menu bar app for fast text and image capture into Obsidian.
 - Content filters — hide frontmatter, Dataview blocks, inline fields, callouts, HTML, and comments
 - Menu bar app: runs quietly in the background and stays one shortcut away
 
+# Capture Window
+<video src="https://github.com/user-attachments/assets/3339444e-27ed-42f7-95d8-53b430b82499" 
+       autoplay loop muted playsinline width="700"></video>
+
+# Reader Window
+<video src="https://github.com/user-attachments/assets/07219a44-9ce1-4d05-bae5-736982a800f8" 
+       autoplay loop muted playsinline width="700"></video>
+
+
+
+
 <img src="public/screenshot/preview.gif" width="600" alt="Reader Window" />
 
 
