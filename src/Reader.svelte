@@ -1,4 +1,7 @@
 <script>
+  const ENABLE_DEMO_FAKE_BG = true; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
+  const DEMO_FAKE_BG = import.meta.env.DEV && ENABLE_DEMO_FAKE_BG;
+
   import "./lib/reader/reader-shell.css";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
@@ -887,6 +890,7 @@
 
 <div
   class="reader-container"
+  class:demo-fake-bg={DEMO_FAKE_BG}
   class:palette-open={showPalette}
   style="
     --app-background: {appSettings.background_color};
@@ -1009,3 +1013,33 @@
     {/each}
   </div>
 {/if}
+
+<style>
+  .reader-container.demo-fake-bg {
+    background:
+      radial-gradient(
+        circle at 18% 10%,
+        rgba(96, 165, 250, 0.13),
+        transparent 40%
+      ),
+      radial-gradient(
+        circle at 78% 18%,
+        rgba(139, 92, 246, 0.1),
+        transparent 44%
+      ),
+      radial-gradient(
+        circle at 52% 88%,
+        rgba(59, 130, 246, 0.1),
+        transparent 54%
+      ),
+      linear-gradient(
+        145deg,
+        rgba(25, 40, 54, 0.96),
+        rgba(31, 38, 55, 0.96) 48%,
+        rgba(24, 48, 52, 0.97)
+      );
+
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+</style>
