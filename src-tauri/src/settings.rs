@@ -90,6 +90,18 @@ pub struct Settings {
     #[serde(default = "default_image_width")]
     pub default_image_width: String,
     pub entry_header: String,
+    #[serde(default)]
+    pub daily_note_target_heading: String,
+    #[serde(default = "default_daily_note_insert_position")]
+    pub daily_note_insert_position: String,
+    #[serde(default = "default_false")]
+    pub daily_note_create_heading_if_missing: bool,
+    #[serde(default = "default_false")]
+    pub daily_note_create_if_missing: bool,
+    #[serde(default = "default_daily_note_create_timeout_ms")]
+    pub daily_note_create_timeout_ms: u64,
+    #[serde(default = "default_true")]
+    pub show_capture_action_bar: bool,
     #[serde(default = "default_true")]
     pub show_note_paths: bool,
     #[serde(default = "default_autocomplete_results")]
@@ -181,6 +193,14 @@ fn default_edge_enabled() -> bool {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_daily_note_insert_position() -> String {
+    "bottom".to_string()
+}
+
+fn default_daily_note_create_timeout_ms() -> u64 {
+    15000
 }
 
 fn default_false() -> bool {
@@ -441,6 +461,12 @@ impl Default for Settings {
             image_filename: "screenshot-YYYY-MM-DD-HHmmss".to_string(),
             default_image_width: default_image_width(),
             entry_header: "#### HH:mm".to_string(),
+            daily_note_target_heading: String::new(),
+            daily_note_insert_position: default_daily_note_insert_position(),
+            daily_note_create_heading_if_missing: default_false(),
+            daily_note_create_if_missing: default_false(),
+            daily_note_create_timeout_ms: default_daily_note_create_timeout_ms(),
+            show_capture_action_bar: default_true(),
             show_note_paths: default_true(),
             autocomplete_results: default_autocomplete_results(),
             global_shortcut: "Cmd+Shift+N".to_string(),
@@ -833,6 +859,14 @@ impl Settings {
             return Err("window_brightness must be between -100 and 100".to_string());
         }
 
+        if self.daily_note_insert_position != "top" && self.daily_note_insert_position != "bottom" {
+            return Err("daily_note_insert_position must be 'top' or 'bottom'".to_string());
+        }
+
+        if self.daily_note_create_timeout_ms < 1000 || self.daily_note_create_timeout_ms > 60000 {
+            return Err("daily_note_create_timeout_ms must be between 1000 and 60000".to_string());
+        }
+
         Ok(())
     }
 }
@@ -1017,5 +1051,69 @@ mod tests {
         };
 
         assert!(settings.validate().is_err());
+    }
+
+    // ── new daily note settings tests ─────────────────────
+
+    #[test]
+    fn rejects_invalid_daily_note_insert_position() {
+        let settings = Settings {
+            daily_note_insert_position: "left".to_string(),
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn accepts_valid_daily_note_insert_positions() {
+        let top = Settings {
+            daily_note_insert_position: "top".to_string(),
+            ..Default::default()
+        };
+        assert!(top.validate().is_ok());
+
+        let bottom = Settings {
+            daily_note_insert_position: "bottom".to_string(),
+            ..Default::default()
+        };
+        assert!(bottom.validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_daily_note_create_timeout_below_minimum() {
+        let settings = Settings {
+            daily_note_create_timeout_ms: 500,
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_daily_note_create_timeout_above_maximum() {
+        let settings = Settings {
+            daily_note_create_timeout_ms: 61000,
+            ..Default::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn accepts_default_daily_note_settings() {
+        let settings = Settings::default();
+        // default daily_note_insert_position = "bottom"
+        assert_eq!(settings.daily_note_insert_position, "bottom");
+        // default daily_note_create_timeout_ms = 15000
+        assert_eq!(settings.daily_note_create_timeout_ms, 15000);
+        // default daily_note_create_if_missing = false
+        assert!(!settings.daily_note_create_if_missing);
+        // default daily_note_create_heading_if_missing = false
+        assert!(!settings.daily_note_create_heading_if_missing);
+        // default show_capture_action_bar = true
+        assert!(settings.show_capture_action_bar);
+        // validation must pass with defaults
+        assert!(settings.validate().is_ok());
     }
 }

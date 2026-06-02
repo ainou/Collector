@@ -358,7 +358,7 @@ async fn append_to_daily_note(
     let daily_path = capture::build_daily_note_path(&settings);
     let resolved = resolve_vault_write_path(&settings, &daily_path)?;
 
-    capture::append_to_daily_note(&text, &resolved, &settings)?;
+    capture::append_to_daily_note(&text, &resolved, &settings).await?;
 
     Ok(())
 }

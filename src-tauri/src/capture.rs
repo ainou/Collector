@@ -1,9 +1,11 @@
 use chrono::Local;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::time::Duration;
 
 use crate::log_safety::{redact_path, summarize_text_len};
+use crate::markdown_sections::{self, InsertPosition};
 use crate::settings::Settings;
 
 #[derive(Debug)]
@@ -34,8 +36,8 @@ where
     let ampm_lower = dt.format("%P").to_string();
     let ampm_upper = dt.format("%p").to_string();
 
-    // Token → Wert Zuordnung.
-    // Längere Token zuerst, damit z.B. "hh" vor "h" matched.
+    // Token -> Wert Zuordnung.
+    // Laengere Token zuerst, damit z.B. "hh" vor "h" matched.
     let tokens: &[(&str, String)] = &[
         ("YYYY", dt.format("%Y").to_string()),
         ("MM", dt.format("%m").to_string()),
@@ -50,7 +52,7 @@ where
     ];
 
     // Single-Pass: jedes Token wird nur im Original-Template erkannt,
-    // sodass eingesetzte Werte (z.B. "pm" enthält 'a') nie erneut ersetzt werden.
+    // sodass eingesetzte Werte (z.B. "pm" enthaelt 'a') nie erneut ersetzt werden.
     let mut result = String::with_capacity(template.len() * 2);
     let mut remaining = template;
     while !remaining.is_empty() {
@@ -185,8 +187,8 @@ fn generate_filename_from_template(template: &str) -> String {
     let ampm_lower = now.format("%P").to_string();
     let ampm_upper = now.format("%p").to_string();
 
-    // Token → Wert Zuordnung.
-    // Längere Token zuerst, damit z.B. "hh" vor "h" matched.
+    // Token -> Wert Zuordnung.
+    // Laengere Token zuerst, damit z.B. "hh" vor "h" matched.
     // WICHTIG: Die Token-Namen selbst enthalten keine problematischen Zeichen,
     // aber Nutzer sollten Doppelpunkte in Filename-Templates vermeiden
     // (macOS erlaubt keine Doppelpunkte in Dateinamen).
@@ -204,7 +206,7 @@ fn generate_filename_from_template(template: &str) -> String {
     ];
 
     // Single-Pass: jedes Token wird nur im Original-Template erkannt,
-    // sodass eingesetzte Werte (z.B. "pm" enthält 'a') nie erneut ersetzt werden.
+    // sodass eingesetzte Werte (z.B. "pm" enthaelt 'a') nie erneut ersetzt werden.
     let mut result = String::with_capacity(template.len() * 2);
     let mut remaining = template;
     while !remaining.is_empty() {
@@ -227,7 +229,86 @@ fn generate_filename_from_template(template: &str) -> String {
     filename
 }
 
-pub fn append_to_daily_note(
+/// Build an Obsidian Advanced URI to open/create today's daily note.
+pub fn build_daily_note_advanced_uri(vault_name: &str) -> String {
+    format!(
+        "obsidian://adv-uri?vault={}&daily=true",
+        urlencoding::encode(vault_name)
+    )
+}
+
+/// Open Advanced URI and wait for the daily note file to appear and stabilise.
+async fn ensure_daily_note_created(file_path: &Path, settings: &Settings) -> Result<(), String> {
+    let adv_uri = build_daily_note_advanced_uri(&settings.vault_name);
+
+    log::info!(
+        "Opening Advanced URI to create daily note (file={}, uri={})",
+        redact_path(file_path),
+        adv_uri
+    );
+
+    open::that(&adv_uri).map_err(|e| format!("Failed to open Advanced URI: {}", e))?;
+
+    // Phase 1: wait for file to appear
+    let timeout = Duration::from_millis(settings.daily_note_create_timeout_ms);
+    let start = std::time::Instant::now();
+
+    loop {
+        if file_path.exists() {
+            break;
+        }
+        if start.elapsed() > timeout {
+            return Err(format!(
+                "Timed out waiting for daily note to be created: {:?}. \
+                 Please check that Obsidian is running and the vault \"{}\" exists.",
+                file_path, settings.vault_name
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+
+    // Phase 2: wait for file to stabilise (Obsidian / Templater still writing)
+    let stability_max = Duration::from_secs(5);
+    let stab_start = std::time::Instant::now();
+    let mut last_len = 0u64;
+    let mut last_modified = std::time::SystemTime::UNIX_EPOCH;
+    let mut stable_count = 0u8;
+
+    loop {
+        if stab_start.elapsed() > stability_max {
+            log::warn!("Stability check timed out for {:?}, proceeding", file_path);
+            return Ok(());
+        }
+
+        match fs::metadata(file_path) {
+            Ok(meta) => {
+                let cur_len = meta.len();
+                let cur_mtime = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                if cur_len > 0 && cur_len == last_len && cur_mtime == last_modified {
+                    stable_count += 1;
+                    if stable_count >= 3 {
+                        return Ok(());
+                    }
+                } else {
+                    stable_count = 0;
+                    last_len = cur_len;
+                    last_modified = cur_mtime;
+                }
+            }
+            Err(_) => {
+                stable_count = 0;
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
+/// Append `captured_text` to the daily note using section-insert logic.
+///
+/// If the file does not exist and `daily_note_create_if_missing` is true,
+/// it opens the Obsidian Advanced URI to create it, waits for it, then writes.
+pub async fn append_to_daily_note(
     captured_text: &str,
     file_path: &Path,
     settings: &Settings,
@@ -242,64 +323,107 @@ pub fn append_to_daily_note(
         summarize_text_len(captured_text)
     );
 
+    // Create daily note when missing (Advanced URI)
+    if !file_path.exists() {
+        if !settings.daily_note_create_if_missing {
+            return Err(format!(
+                "Daily note not found: {:?}. Please create the file first.",
+                file_path
+            ));
+        }
+        ensure_daily_note_created(file_path, settings).await?;
+    }
+
+    // Build the entry with header
+    let header = generate_header(&settings.entry_header);
+    let entry = format!("{}\n{}", header, captured_text);
+
+    // Read current content
+    let content =
+        fs::read_to_string(file_path).map_err(|e| format!("Cannot read daily note: {}", e))?;
+
+    // Determine insert position from settings
+    let position = match settings.daily_note_insert_position.as_str() {
+        "top" => InsertPosition::Top,
+        _ => InsertPosition::Bottom,
+    };
+
+    // Use section-insert logic
+    let new_content = markdown_sections::insert_into_markdown_section(
+        &content,
+        &entry,
+        &settings.daily_note_target_heading,
+        position,
+        settings.daily_note_create_heading_if_missing,
+    );
+
+    fs::write(file_path, &new_content).map_err(|e| format!("Cannot write to daily note: {}", e))?;
+
+    log::info!(
+        "Successfully appended to daily note (file={})",
+        redact_path(file_path)
+    );
+    Ok(())
+}
+
+/// Append `captured_text` to an arbitrary note file (legacy behaviour).
+/// Always appends to end — no section-insert logic.
+pub fn append_to_note(
+    captured_text: &str,
+    file_path: &Path,
+    settings: &Settings,
+) -> Result<(), String> {
+    if captured_text.trim().is_empty() {
+        return Err("Nothing to append".to_string());
+    }
+
+    log::info!(
+        "Appending to note (file={}, chars={})",
+        redact_path(file_path),
+        summarize_text_len(captured_text)
+    );
+
     if !file_path.exists() {
         return Err(format!(
-            "Daily note not found: {:?}. Please create the file first.",
+            "Note not found: {:?}. Please create the file first.",
             file_path
         ));
     }
 
     let header = generate_header(&settings.entry_header);
-
-    let entry = format!(
-        "{}
-{}
-",
-        header, captured_text
-    );
-
-    let needs_leading_newline = {
-        let mut check_file =
-            File::open(&file_path).map_err(|e| format!("Cannot open daily note: {}", e))?;
-
-        let file_size = check_file
-            .metadata()
-            .map_err(|e| format!("Cannot read file metadata: {}", e))?
-            .len();
-
-        if file_size == 0 {
-            false
-        } else {
-            let seek_pos = if file_size >= 2 { file_size - 2 } else { 0 };
-            check_file
-                .seek(SeekFrom::Start(seek_pos))
-                .map_err(|e| format!("Cannot set file position: {}", e))?;
-
-            let mut check_buffer = [0u8; 2];
-            let bytes_read = check_file
-                .read(&mut check_buffer)
-                .map_err(|e| format!("Cannot read file: {}", e))?;
-
-            match bytes_read {
-                2 => !(check_buffer == [0x0D, 0x0A] || check_buffer[1] == 0x0A),
-                1 => check_buffer[0] != 0x0A,
-                _ => true,
-            }
-        }
-    };
+    let entry = format!("{}\n{}\n", header, captured_text);
 
     let mut file = OpenOptions::new()
         .write(true)
         .append(true)
         .open(file_path)
-        .map_err(|e| format!("Cannot open daily note: {}", e))?;
+        .map_err(|e| format!("Cannot open note: {}", e))?;
 
-    if needs_leading_newline {
-        file.write_all(
-            b"
-",
-        )
-        .map_err(|e| format!("Cannot write to file: {}", e))?;
+    let file_size = file
+        .metadata()
+        .map_err(|e| format!("Cannot read file metadata: {}", e))?
+        .len();
+
+    if file_size > 0 {
+        let seek_pos = if file_size >= 2 { file_size - 2 } else { 0 };
+        file.seek(SeekFrom::Start(seek_pos))
+            .map_err(|e| format!("Cannot set file position: {}", e))?;
+
+        let mut buf = [0u8; 2];
+        let n = file
+            .read(&mut buf)
+            .map_err(|e| format!("Cannot read file: {}", e))?;
+
+        let ends_with_newline = match n {
+            2 => buf == [0x0D, 0x0A] || buf[1] == 0x0A,
+            1 => buf[0] == 0x0A,
+            _ => false,
+        };
+
+        if !ends_with_newline {
+            file.write_all(b"\n")
+                .map_err(|e| format!("Cannot write to file: {}", e))?;
+        }
     }
 
     file.write_all(entry.as_bytes())
@@ -309,18 +433,10 @@ pub fn append_to_daily_note(
         .map_err(|e| format!("Cannot sync file: {}", e))?;
 
     log::info!(
-        "Successfully appended to daily note (file={})",
-        redact_path(&file_path)
+        "Successfully appended to note (file={})",
+        redact_path(file_path)
     );
     Ok(())
-}
-
-pub fn append_to_note(
-    captured_text: &str,
-    file_path: &Path,
-    settings: &Settings,
-) -> Result<(), String> {
-    append_to_daily_note(captured_text, file_path, settings)
 }
 
 #[cfg(test)]
@@ -336,11 +452,11 @@ mod tests {
 
     #[test]
     fn test_generate_header_12h_tokens() {
-        // hh: 12h mit führender Null (z.B. "03")
+        // hh: 12h mit fuehrender Null (z.B. "03")
         let h = generate_header("hh");
         assert!(h.len() == 2 && h.chars().all(|c| c.is_ascii_digit()));
 
-        // h: 12h ohne führende Null (z.B. "3" oder "12")
+        // h: 12h ohne fuehrende Null (z.B. "3" oder "12")
         let h = generate_header("h");
         assert!(!h.is_empty() && h.chars().all(|c| c.is_ascii_digit()));
 
@@ -605,5 +721,58 @@ mod tests {
         assert_eq!(generate_header_with_time("hh", noon), "12");
         assert_eq!(generate_header_with_time("h", noon), "12");
         assert_eq!(generate_header_with_time("A", noon), "PM");
+    }
+
+    // -- tests for new functions ----------------------------------------
+
+    #[test]
+    fn test_build_daily_note_advanced_uri() {
+        let uri = build_daily_note_advanced_uri("My Vault");
+        assert!(uri.starts_with("obsidian://adv-uri?"));
+        assert!(uri.contains("vault=My%20Vault"));
+        assert!(uri.contains("daily=true"));
+    }
+
+    #[test]
+    fn test_build_daily_note_advanced_uri_special_chars() {
+        let uri = build_daily_note_advanced_uri("Vault & Co");
+        assert!(uri.starts_with("obsidian://adv-uri?"));
+        assert!(uri.contains("vault=Vault%20%26%20Co"));
+        assert!(uri.contains("daily=true"));
+    }
+
+    #[test]
+    fn test_append_to_note_works_independently() {
+        // append_to_note must still be callable (sync, no section logic)
+        // We test the error path only (missing file) — no real I/O
+        let settings = Settings::default();
+        let result = append_to_note(
+            "hello",
+            Path::new("/tmp/collector-test-nonexistent.md"),
+            &settings,
+        );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_append_daily_note_missing_file_no_create() {
+        // Daily note fehlt + create_if_missing=false => Fehler, bevor irgendwas passiert
+        let tmp = std::env::temp_dir().join("collector-test-missing-daily.md");
+        let _ = std::fs::remove_file(&tmp); // clean slate
+
+        let settings = Settings {
+            daily_note_create_if_missing: false,
+            ..Default::default()
+        };
+
+        let result = append_to_daily_note("test text", &tmp, &settings).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("not found"));
+
+        // Es wurde KEINE Datei erstellt
+        assert!(!tmp.exists());
     }
 }
