@@ -8,6 +8,7 @@
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import AppendToPicker from "./lib/reader/AppendToPicker.svelte";
     import WikilinkPicker from "./lib/WikilinkPicker.svelte";
+    import CaptureActionBar from "./lib/capture/CaptureActionBar.svelte";
     import { filterPaletteNotes } from "./lib/reader/paletteLogic.js";
     import { getAutocompleteResults } from "./lib/reader/autocomplete.js";
 
@@ -1375,34 +1376,16 @@
         </div>
     </div>
 
-    {#if appSettings.show_capture_action_bar}
-        <div class="action-bar">
-            <button
-                class="action-btn"
-                on:click={handleAppendToDaily}
-                disabled={isLoading}
-                title={appSettings.save_to_daily_shortcut}
-            >
-                Daily Note
-            </button>
-            <button
-                class="action-btn"
-                on:click={handleSaveAsNote}
-                disabled={isLoading}
-                title={appSettings.save_as_note_shortcut}
-            >
-                New Note
-            </button>
-            <button
-                class="action-btn"
-                on:click={openAppendPicker}
-                disabled={isLoading}
-                title={appSettings.append_to_note_shortcut}
-            >
-                Append
-            </button>
-        </div>
-    {/if}
+    <CaptureActionBar
+        show={appSettings.show_capture_action_bar}
+        {isLoading}
+        saveToDailyShortcut={appSettings.save_to_daily_shortcut}
+        saveAsNoteShortcut={appSettings.save_as_note_shortcut}
+        appendToNoteShortcut={appSettings.append_to_note_shortcut}
+        on:daily={handleAppendToDaily}
+        on:newNote={handleSaveAsNote}
+        on:append={openAppendPicker}
+    />
 
     <div class="resize-handle"></div>
 
@@ -1554,7 +1537,7 @@
 
     .capture-container.append-picker-open .accent-line,
     .capture-container.append-picker-open .content-wrapper,
-    .capture-container.append-picker-open .action-bar,
+    .capture-container.append-picker-open :global(.action-bar),
     .capture-container.append-picker-open .status-toast,
     .capture-container.append-picker-open .resize-handle {
         filter: blur(4px) brightness(0.62);
@@ -1705,47 +1688,7 @@
         opacity: 0.6;
     }
 
-    .action-bar {
-        display: flex;
-        gap: 6px;
-        padding: 4px 12px 6px;
-        flex-shrink: 0;
-        justify-content: center;
-    }
 
-    .action-btn {
-        padding: 5px 10px;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 999px;
-        background: transparent;
-        color: rgba(255, 255, 255, 0.72);
-        font-size: 11px;
-        font-weight: 500;
-        cursor: pointer;
-        transition:
-            border-color 0.15s ease,
-            color 0.15s ease,
-            background-color 0.15s ease,
-            opacity 0.15s ease;
-        letter-spacing: 0.2px;
-        line-height: 1;
-    }
-
-    .action-btn:hover:not(:disabled) {
-        color: rgba(255, 255, 255, 0.9);
-        border-color: rgba(255, 255, 255, 0.28);
-        background: rgba(255, 255, 255, 0.03);
-    }
-
-    .action-btn:active:not(:disabled) {
-        background: rgba(255, 255, 255, 0.06);
-        border-color: rgba(255, 255, 255, 0.32);
-    }
-
-    .action-btn:disabled {
-        opacity: 0.45;
-        cursor: default;
-    }
 
     .resize-handle {
         position: absolute;
