@@ -50,9 +50,7 @@ pub fn capture_selected_text() -> Option<String> {
     }
 
     if captured.as_deref() == previous.as_deref() {
-        log::warn!(
-            "capture_selected_text: clipboard unchanged — nothing selected or copy failed"
-        );
+        log::warn!("capture_selected_text: clipboard unchanged — nothing selected or copy failed");
         return None;
     }
 

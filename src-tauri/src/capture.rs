@@ -511,7 +511,9 @@ mod tests {
     fn test_time_tokens_afternoon_1430() {
         use chrono::TimeZone;
         // 14:30:45 (2:30:45 PM) on 2024-03-15
-        let dt = chrono::Utc.with_ymd_and_hms(2024, 3, 15, 14, 30, 45).unwrap();
+        let dt = chrono::Utc
+            .with_ymd_and_hms(2024, 3, 15, 14, 30, 45)
+            .unwrap();
 
         // HH: 24-hour with leading zero
         assert_eq!(generate_header_with_time("HH", dt), "14");
@@ -572,7 +574,9 @@ mod tests {
     fn test_time_tokens_hh_before_h() {
         use chrono::TimeZone;
         // Verify "hh" is matched as a single token, not as "h" + "h"
-        let dt = chrono::Utc.with_ymd_and_hms(2024, 3, 15, 14, 30, 0).unwrap();
+        let dt = chrono::Utc
+            .with_ymd_and_hms(2024, 3, 15, 14, 30, 0)
+            .unwrap();
 
         // "hh" should be "02" (14:30 = 2:30 PM)
         assert_eq!(generate_header_with_time("hh", dt), "02");

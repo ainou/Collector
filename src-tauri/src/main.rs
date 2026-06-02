@@ -8,6 +8,7 @@ mod capture;
 mod edge_detect;
 mod image_handler;
 mod log_safety;
+mod markdown_sections;
 mod selected_text;
 mod settings;
 mod shortcuts;
@@ -381,11 +382,7 @@ async fn append_to_note(
 async fn read_note_file(path: String, state: tauri::State<'_, AppState>) -> Result<String, String> {
     let settings = state.settings.read().await.clone();
     let resolved = resolve_vault_read_path(&settings, &path)?;
-    let result = timeout(
-        Duration::from_secs(5),
-        tokio::fs::read_to_string(&resolved),
-    )
-    .await;
+    let result = timeout(Duration::from_secs(5), tokio::fs::read_to_string(&resolved)).await;
 
     match result {
         Ok(Ok(content)) => Ok(content),
@@ -961,9 +958,10 @@ fn main() {
             let menu = create_tray_menu(&app_handle);
             let settings_for_tray = settings.clone();
             let _tray = TrayIconBuilder::with_id("main")
-                .icon(tauri::image::Image::from_bytes(
-                    include_bytes!("../icons/tray-icon.png")
-                ).unwrap())
+                .icon(
+                    tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
+                        .unwrap(),
+                )
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "quick_capture" => {
