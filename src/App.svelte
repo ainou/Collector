@@ -9,6 +9,7 @@
     import AppendToPicker from "./lib/reader/AppendToPicker.svelte";
     import WikilinkPicker from "./lib/WikilinkPicker.svelte";
     import CaptureActionBar from "./lib/capture/CaptureActionBar.svelte";
+    import CaptureStatus from "./lib/capture/CaptureStatus.svelte";
     import { filterPaletteNotes } from "./lib/reader/paletteLogic.js";
     import { getAutocompleteResults } from "./lib/reader/autocomplete.js";
 
@@ -1393,11 +1394,7 @@
         <div class="drop-overlay"></div>
     {/if}
 
-    {#if statusMessage}
-        <div class="status-toast" class:error={statusType === "error"}>
-            {statusMessage}
-        </div>
-    {/if}
+    <CaptureStatus message={statusMessage} type={statusType} />
 
     {#if wikiAutocompleteOpen && wikiAutocompleteMatches.length > 0}
         {@const pos = getWikiDropdownPosition()}
@@ -1527,7 +1524,6 @@
 
     .accent-line,
     .content-wrapper,
-    .status-toast,
     .resize-handle {
         transition:
             filter 0.12s ease,
@@ -1538,7 +1534,7 @@
     .capture-container.append-picker-open .accent-line,
     .capture-container.append-picker-open .content-wrapper,
     .capture-container.append-picker-open :global(.action-bar),
-    .capture-container.append-picker-open .status-toast,
+    .capture-container.append-picker-open :global(.status-toast),
     .capture-container.append-picker-open .resize-handle {
         filter: blur(4px) brightness(0.62);
         opacity: 0.56;
@@ -1745,41 +1741,7 @@
         pointer-events: none;
     }
 
-    .status-toast {
-        position: absolute;
-        bottom: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 8px 16px;
-        background: var(--success-bg);
-        -webkit-backdrop-filter: blur(20px);
-        backdrop-filter: blur(20px);
-        border: 0.5px solid var(--success-border);
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--success-color);
-        animation: fadeInUp 0.2s ease-out;
-        white-space: nowrap;
-        z-index: 100;
-    }
 
-    .status-toast.error {
-        background: var(--error-bg);
-        border-color: var(--error-border);
-        color: var(--error-color);
-    }
-
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateX(-50%) translateY(10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-    }
 
     .loading-indicator {
         position: absolute;

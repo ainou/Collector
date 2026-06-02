@@ -1,0 +1,54 @@
+<script>
+  /** @type {string} */
+  export let message = "";
+  /** @type {string} */
+  export let type = "";
+</script>
+
+{#if message}
+  <div class="status-toast" class:error={type === "error"}>
+    {message}
+  </div>
+{/if}
+
+<style>
+  .status-toast {
+    transition:
+      filter 0.12s ease,
+      opacity 0.12s ease,
+      transform 0.12s ease;
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    background: var(--success-bg);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 0.5px solid var(--success-border);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--success-color);
+    animation: fadeInUp 0.2s ease-out;
+    white-space: nowrap;
+    z-index: 100;
+  }
+
+  .status-toast.error {
+    background: var(--error-bg);
+    border-color: var(--error-border);
+    color: var(--error-color);
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+</style>
