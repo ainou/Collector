@@ -13,8 +13,19 @@
     import CaptureLoadingIndicator from "./lib/capture/CaptureLoadingIndicator.svelte";
     import CaptureResizeHandle from "./lib/capture/CaptureResizeHandle.svelte";
     import CaptureImageGallery from "./lib/capture/CaptureImageGallery.svelte";
+    import CaptureAccentLine from "./lib/capture/CaptureAccentLine.svelte";
+    import CaptureDropOverlay from "./lib/capture/CaptureDropOverlay.svelte";
     import { filterPaletteNotes } from "./lib/reader/paletteLogic.js";
     import { getAutocompleteResults } from "./lib/reader/autocomplete.js";
+    import {
+        isFileDrag,
+        normalizeFilePath,
+        normalizeImageResult,
+        parseHeadings,
+        formatEntryHeader,
+        getVaultNotePath,
+        matchesShortcut,
+    } from "./lib/capture/capture-utils.js";
 
     let textareaRef;
     let content = "";
@@ -86,12 +97,7 @@
         }
     })();
 
-    function isFileDrag(e) {
-        const types = e.dataTransfer?.types;
-        if (types && Array.from(types).includes("Files")) return true;
-        const items = e.dataTransfer?.items;
-        return !!items && items.length > 0;
-    }
+
 
     function applyColorSettings(settings = appSettings) {
         const root = document.documentElement;
@@ -109,73 +115,15 @@
         );
     }
 
-    function normalizeFilePath(path) {
-        if (!path) return "";
-        if (path.startsWith("file://")) {
-            return decodeURIComponent(path.replace("file://", ""));
-        }
-        return path;
-    }
 
-    function normalizeImageResult(result) {
-        if (typeof result === "string") {
-            return {
-                markdown: result,
-                saved_path: null,
-                filename: null,
-                preview_data_url: "",
-            };
-        }
-        return {
-            markdown: result?.markdown ?? "",
-            saved_path: result?.saved_path ?? null,
-            filename: result?.filename ?? null,
-            preview_data_url: result?.preview_data_url ?? "",
-        };
-    }
 
-    function parseHeadings(content) {
-        const lines = content.split("\n");
-        const headings = [];
 
-        lines.forEach((line, index) => {
-            const match = line.match(/^(#{1,6})\s+(.+)/);
-            if (!match) return;
 
-            headings.push({
-                level: match[1].length,
-                text: match[2].trim(),
-                display: line.trim(),
-                lineIndex: index,
-            });
-        });
 
-        return headings;
-    }
 
-    function formatEntryHeader(template = "#### HH:mm") {
-        const now = new Date();
-        const replacements = {
-            YYYY: String(now.getFullYear()),
-            MM: String(now.getMonth() + 1).padStart(2, "0"),
-            DD: String(now.getDate()).padStart(2, "0"),
-            HH: String(now.getHours()).padStart(2, "0"),
-            mm: String(now.getMinutes()).padStart(2, "0"),
-            ss: String(now.getSeconds()).padStart(2, "0"),
-        };
 
-        return String(template ?? "")
-            .replace(/YYYY/g, replacements.YYYY)
-            .replace(/MM/g, replacements.MM)
-            .replace(/DD/g, replacements.DD)
-            .replace(/HH/g, replacements.HH)
-            .replace(/mm/g, replacements.mm)
-            .replace(/ss/g, replacements.ss);
-    }
 
-    function getVaultNotePath(note = {}) {
-        return note?.relative_path || note?.path || "";
-    }
+
 
     async function insertAfterHeading(notePath, heading, text) {
         const fileContent = await invoke("read_note_file", { path: notePath });
@@ -717,47 +665,7 @@
         }
     }
 
-    function matchesShortcut(event, shortcutString) {
-        if (!shortcutString) return false;
 
-        const parts = shortcutString.split("+").map((p) => p.trim());
-        const modifiers = {
-            hasCmd: parts.includes("Cmd") || parts.includes("Command"),
-            hasCtrl: parts.includes("Ctrl") || parts.includes("Control"),
-            hasShift: parts.includes("Shift"),
-            hasAlt:
-                parts.includes("Alt") ||
-                parts.includes("Option") ||
-                parts.includes("Opt"),
-        };
-
-        const key = parts.find(
-            (p) =>
-                ![
-                    "Cmd",
-                    "Command",
-                    "Ctrl",
-                    "Control",
-                    "Shift",
-                    "Alt",
-                    "Option",
-                    "Opt",
-                ].includes(p),
-        );
-
-        if (!key) return false;
-
-        const modifiersMatch =
-            (event.metaKey === modifiers.hasCmd ||
-                event.ctrlKey === modifiers.hasCmd) &&
-            event.ctrlKey === modifiers.hasCtrl &&
-            event.shiftKey === modifiers.hasShift &&
-            event.altKey === modifiers.hasAlt;
-
-        const keyMatches = event.key.toLowerCase() === key.toLowerCase();
-
-        return modifiersMatch && keyMatches;
-    }
 
     async function handleKeydown(e) {
         if (wikiAutocompleteOpen) {
@@ -1294,7 +1202,7 @@
     on:drop={handleDrop}
     role="application"
 >
-    <div class="accent-line" role="presentation"></div>
+    <CaptureAccentLine />
 
     <div
         class="content-wrapper"
@@ -1373,9 +1281,7 @@
 
     <CaptureResizeHandle />
 
-    {#if isDragging}
-        <div class="drop-overlay"></div>
-    {/if}
+    <CaptureDropOverlay show={isDragging} />
 
     <CaptureStatus message={statusMessage} type={statusType} />
 
@@ -1491,19 +1397,8 @@
             0 2px 8px var(--shadow-sm);
     }
 
-    .accent-line {
-        height: 2px;
-        background: linear-gradient(
-            90deg,
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 70%, transparent),
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 35%, transparent),
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 70%, transparent)
-        );
-        background-size: 200% 100%;
-        animation: shimmer 3s linear infinite;
-    }
 
-    .accent-line,
+
     .content-wrapper {
         transition:
             filter 0.12s ease,
@@ -1511,7 +1406,7 @@
             transform 0.12s ease;
     }
 
-    .capture-container.append-picker-open .accent-line,
+    .capture-container.append-picker-open :global(.accent-line),
     .capture-container.append-picker-open .content-wrapper,
     .capture-container.append-picker-open :global(.action-bar),
     .capture-container.append-picker-open :global(.status-toast),
@@ -1522,14 +1417,7 @@
         pointer-events: none;
     }
 
-    @keyframes shimmer {
-        0% {
-            background-position: 200% 0;
-        }
-        100% {
-            background-position: -200% 0;
-        }
-    }
+
 
     .content-wrapper {
         flex: 1;
@@ -1578,20 +1466,7 @@
         opacity: 0.6;
     }
 
-    .drop-overlay {
-        position: absolute;
-        inset: 2px;
-        background: none;
-        border: 2px dashed rgba(255, 255, 255, 0.7);
-        border: 2px rgba(255, 255, 255, 0.7);
-        border-radius: 12px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        pointer-events: none;
-    }
+
 
 
 
