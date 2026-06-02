@@ -8,7 +8,7 @@ pub enum InsertPosition {
 ///
 /// * `content` — existing markdown text
 /// * `entry` — text to insert
-/// * `target_heading` — exact heading to find, e.g. `"## Log"`
+/// * `target_heading` — exact heading to find, e.g. `"### Note"`
 /// * `position` — where within the section to insert
 /// * `create_heading_if_missing` — if true, append heading+entry at end when heading not found
 ///
@@ -132,63 +132,63 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_insert_bottom_into_log_section() {
-        let content = "# Daily\n\n## Log\n\n- entry 1\n\n## Habits\n\n- habit 1\n";
+    fn test_insert_bottom_into_note_section() {
+        let content = "# Daily\n\n### Note\n\n- entry 1\n\n## Habits\n\n- habit 1\n";
         let result = insert_into_markdown_section(
             content,
             "- entry 2",
-            "## Log",
+            "### Note",
             InsertPosition::Bottom,
             false,
         );
         assert!(result.contains("- entry 1"));
         assert!(result.contains("- entry 2"));
         // entry 2 must appear after entry 1 but before ## Habits
-        let log_pos = result.find("## Log").unwrap();
+        let heading_pos = result.find("### Note").unwrap();
         let entry1 = result.find("- entry 1").unwrap();
         let entry2 = result.find("- entry 2").unwrap();
         let habits_pos = result.find("## Habits").unwrap();
-        assert!(log_pos < entry1);
+        assert!(heading_pos < entry1);
         assert!(entry1 < entry2);
         assert!(entry2 < habits_pos);
     }
 
     #[test]
-    fn test_insert_top_into_log_section() {
-        let content = "# Daily\n\n## Log\n\n- entry 1\n\n## Habits\n";
+    fn test_insert_top_into_note_section() {
+        let content = "# Daily\n\n### Note\n\n- entry 1\n\n## Habits\n";
         let result = insert_into_markdown_section(
             content,
             "- new entry",
-            "## Log",
+            "### Note",
             InsertPosition::Top,
             false,
         );
         assert!(result.contains("- new entry"));
         assert!(result.contains("- entry 1"));
-        // new entry must be first under ## Log
-        let log_pos = result.find("## Log").unwrap();
+        // new entry must be first under ### Note
+        let heading_pos = result.find("### Note").unwrap();
         let new_entry_pos = result.find("- new entry").unwrap();
         let entry1_pos = result.find("- entry 1").unwrap();
         let habits_pos = result.find("## Habits").unwrap();
-        assert!(log_pos < new_entry_pos);
+        assert!(heading_pos < new_entry_pos);
         assert!(new_entry_pos < entry1_pos);
         assert!(entry1_pos < habits_pos);
     }
 
     #[test]
     fn test_insert_bottom_respects_next_heading_same_level() {
-        let content = "## Log\n- a\n\n## Log\n- b\n";
+        let content = "### Note\n- a\n\n### Note\n- b\n";
         let result = insert_into_markdown_section(
             content,
             "- inserted",
-            "## Log",
+            "### Note",
             InsertPosition::Bottom,
             false,
         );
         // Only first matching section gets the entry
         let log_count = result.matches("- inserted").count();
         assert_eq!(log_count, 1);
-        // Inserted after -a, before second ## Log
+        // Inserted after -a, before second ### Note
         let a_pos = result.find("- a").unwrap();
         let inserted_pos = result.find("- inserted").unwrap();
         let b_pos = result.find("- b").unwrap();
@@ -222,14 +222,14 @@ mod tests {
         let result = insert_into_markdown_section(
             content,
             "- captured item",
-            "## Log",
+            "### Note",
             InsertPosition::Bottom,
             true,
         );
-        assert!(result.contains("## Log"));
+        assert!(result.contains("### Note"));
         assert!(result.contains("- captured item"));
         // Heading must be at the end
-        let heading_pos = result.find("## Log").unwrap();
+        let heading_pos = result.find("### Note").unwrap();
         let content_pos = result.find("Some content").unwrap();
         assert!(content_pos < heading_pos);
     }
@@ -237,10 +237,15 @@ mod tests {
     #[test]
     fn test_heading_missing_create_false() {
         let content = "# Note\n\nSome content.\n";
-        let result =
-            insert_into_markdown_section(content, "- orphan", "## Log", InsertPosition::Top, false);
+        let result = insert_into_markdown_section(
+            content,
+            "- orphan",
+            "### Note",
+            InsertPosition::Top,
+            false,
+        );
         // No heading created — entry appended at end
-        assert!(!result.contains("## Log"));
+        assert!(!result.contains("### Note"));
         assert!(result.contains("- orphan"));
         let content_pos = result.find("Some content").unwrap();
         let orphan_pos = result.find("- orphan").unwrap();
@@ -249,9 +254,14 @@ mod tests {
 
     #[test]
     fn test_empty_content() {
-        let result =
-            insert_into_markdown_section("", "- first entry", "## Log", InsertPosition::Top, true);
-        assert_eq!(result, "## Log\n- first entry\n");
+        let result = insert_into_markdown_section(
+            "",
+            "- first entry",
+            "### Note",
+            InsertPosition::Top,
+            true,
+        );
+        assert_eq!(result, "### Note\n- first entry\n");
     }
 
     #[test]
@@ -264,33 +274,38 @@ mod tests {
 
     #[test]
     fn test_preserves_exact_heading_level() {
-        // ### Log should NOT match ## Log (different level)
-        // But ### is a sub-heading inside ##, so bottom of ## goes after ### content.
-        let content = "## Log\n- level 2\n\n### Log\n- level 3\n";
+        // #### Note should NOT match ### Note (different level)
+        // But #### is a sub-heading inside ###, so bottom of ### goes after #### content.
+        let content = "### Note\n- level 2\n\n#### Note\n- level 3\n";
         let result = insert_into_markdown_section(
             content,
-            "- new l2",
-            "## Log",
+            "- new entry",
+            "### Note",
             InsertPosition::Bottom,
             false,
         );
-        // The entry goes in first ## Log section (bottom) — after all sub-content including ###
-        assert!(result.contains("- new l2"));
+        // The entry goes in first ### Note section (bottom) — after all sub-content including ####
+        assert!(result.contains("- new entry"));
         assert!(result.contains("- level 2"));
         assert!(result.contains("- level 3"));
-        let l2_heading = result.find("## Log").unwrap();
-        let new_l2 = result.find("- new l2").unwrap();
-        let l3_heading = result.find("### Log").unwrap();
-        // both level-2 and level-3 content come before the new entry
-        assert!(l3_heading < new_l2);
-        assert!(l2_heading < new_l2);
+        let l3_heading = result.find("### Note").unwrap();
+        let new_entry = result.find("- new entry").unwrap();
+        let l4_heading = result.find("#### Note").unwrap();
+        // both level-3 and level-4 content come before the new entry
+        assert!(l4_heading < new_entry);
+        assert!(l3_heading < new_entry);
     }
 
     #[test]
     fn test_heading_with_trailing_spaces_matches() {
-        let content = "## Log   \n- entry\n";
-        let result =
-            insert_into_markdown_section(content, "- new", "## Log", InsertPosition::Bottom, false);
+        let content = "### Note   \n- entry\n";
+        let result = insert_into_markdown_section(
+            content,
+            "- new",
+            "### Note",
+            InsertPosition::Bottom,
+            false,
+        );
         assert!(result.contains("- entry"));
         assert!(result.contains("- new"));
         let entry_pos = result.find("- entry").unwrap();
@@ -300,11 +315,11 @@ mod tests {
 
     #[test]
     fn test_target_heading_trimmed() {
-        let content = "## Log\n- entry\n";
+        let content = "### Note\n- entry\n";
         let result = insert_into_markdown_section(
             content,
             "- new",
-            "  ## Log  ",
+            "  ### Note  ",
             InsertPosition::Bottom,
             false,
         );

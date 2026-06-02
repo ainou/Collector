@@ -780,7 +780,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_daily_note_integration() {
-        // Vollstaendiger Pfad: existierende Daily Note mit ## Log und ## Other
+        // Vollstaendiger Pfad: existierende Daily Note mit ### Note und ## Other
         let tmp = std::env::temp_dir().join("collector-test-integration");
         let file_path = tmp.join("daily.md");
         let _ = std::fs::create_dir_all(&tmp);
@@ -790,7 +790,7 @@ mod tests {
             "date: 2026-06-02\n",
             "---\n",
             "\n",
-            "## Log\n",
+            "### Note\n",
             "\n",
             "- old entry\n",
             "\n",
@@ -801,7 +801,7 @@ mod tests {
         std::fs::write(&file_path, initial).unwrap();
 
         let settings = Settings {
-            daily_note_target_heading: "## Log".to_string(),
+            daily_note_target_heading: "### Note".to_string(),
             daily_note_insert_position: "bottom".to_string(),
             daily_note_create_heading_if_missing: false,
             daily_note_create_if_missing: false,
@@ -825,13 +825,13 @@ mod tests {
         // Neuer Eintrag vorhanden
         assert!(content.contains("- new entry"));
 
-        // Reihenfolge: ## Log > old entry > new entry > ## Other
-        let log_pos = content.find("## Log").unwrap();
+        // Reihenfolge: ### Note > old entry > new entry > ## Other
+        let heading_pos = content.find("### Note").unwrap();
         let old_pos = content.find("- old entry").unwrap();
         let new_pos = content.find("- new entry").unwrap();
         let other_pos = content.find("## Other").unwrap();
 
-        assert!(log_pos < old_pos, "## Log before - old entry");
+        assert!(heading_pos < old_pos, "### Note before - old entry");
         assert!(old_pos < new_pos, "- old entry before - new entry");
         assert!(new_pos < other_pos, "- new entry before ## Other");
 

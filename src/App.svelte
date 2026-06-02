@@ -1707,34 +1707,44 @@
 
     .action-bar {
         display: flex;
-        gap: 2px;
+        gap: 6px;
         padding: 4px 12px 6px;
         flex-shrink: 0;
         justify-content: center;
     }
 
     .action-btn {
-        padding: 4px 12px;
-        border: none;
-        border-radius: 5px;
-        background: rgba(255, 255, 255, 0.10);
-        color: rgba(255, 255, 255, 0.65);
+        padding: 5px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.72);
         font-size: 11px;
         font-weight: 500;
         cursor: pointer;
-        transition: background 0.15s ease, color 0.15s ease;
+        transition:
+            border-color 0.15s ease,
+            color 0.15s ease,
+            background-color 0.15s ease,
+            opacity 0.15s ease;
         letter-spacing: 0.2px;
-        line-height: 1.4;
+        line-height: 1;
     }
 
     .action-btn:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.18);
         color: rgba(255, 255, 255, 0.9);
+        border-color: rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .action-btn:active:not(:disabled) {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.32);
     }
 
     .action-btn:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
+        opacity: 0.45;
+        cursor: default;
     }
 
     .resize-handle {

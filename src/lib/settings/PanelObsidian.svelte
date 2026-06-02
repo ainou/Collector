@@ -136,7 +136,7 @@
                 type="text"
                 id="daily_note_target_heading"
                 bind:value={settings.daily_note_target_heading}
-                placeholder="## Log"
+                placeholder="### Note"
             />
             <small>Leave empty to append to the end of the daily note.</small>
         </div>
@@ -197,48 +197,6 @@
                 >How long Collector waits for Obsidian to create the daily note
                 before giving up (1000–60000 ms).</small
             >
-        </div>
-
-        <div class="field">
-            <label class="checkbox" for="show_capture_action_bar">
-                <input
-                    type="checkbox"
-                    id="show_capture_action_bar"
-                    bind:checked={settings.show_capture_action_bar}
-                />
-                <span>Show action buttons in capture window</span>
-            </label>
-        </div>
-    </section>
-
-    <section>
-        <h2>Note Pickers</h2>
-        <div class="field">
-            <label class="checkbox" for="show_note_paths">
-                <input
-                    type="checkbox"
-                    id="show_note_paths"
-                    bind:checked={settings.show_note_paths}
-                />
-                <span>Show file paths in note pickers</span>
-            </label>
-            <small>
-                Displays the vault-relative path below each note name in the
-                Command Palette, Append Picker, and Wikilink autocomplete
-            </small>
-        </div>
-
-        <div class="field">
-            <label for="autocomplete_results">Max autocomplete results</label>
-            <input
-                type="number"
-                id="autocomplete_results"
-                min="5"
-                max="50"
-                step="1"
-                bind:value={settings.autocomplete_results}
-            />
-            <small>Number of notes shown in pickers (5–50)</small>
         </div>
     </section>
 </div>
