@@ -60,6 +60,7 @@
         save_to_daily_shortcut: "Cmd+Enter",
         save_as_note_shortcut: "Cmd+Shift+Enter",
         append_to_note_shortcut: "Cmd+Option+Enter",
+        show_capture_action_bar: true,
     };
 
     $: showNotePaths = appSettings?.show_note_paths ?? true;
@@ -388,6 +389,9 @@
                             append_to_note_shortcut:
                                 newSettings.append_to_note_shortcut ??
                                 appSettings.append_to_note_shortcut,
+                            show_capture_action_bar:
+                                newSettings.show_capture_action_bar ??
+                                appSettings.show_capture_action_bar,
                         };
                         applyColorSettings(appSettings);
                     },
@@ -425,6 +429,8 @@
                         append_to_note_shortcut:
                             settings.append_to_note_shortcut ??
                             "Cmd+Option+Enter",
+                        show_capture_action_bar:
+                            settings.show_capture_action_bar ?? true,
                     };
                     applyColorSettings(appSettings);
                 } catch (e) {
@@ -1369,6 +1375,35 @@
         </div>
     </div>
 
+    {#if appSettings.show_capture_action_bar}
+        <div class="action-bar">
+            <button
+                class="action-btn"
+                on:click={handleAppendToDaily}
+                disabled={isLoading}
+                title={appSettings.save_to_daily_shortcut}
+            >
+                Daily Note
+            </button>
+            <button
+                class="action-btn"
+                on:click={handleSaveAsNote}
+                disabled={isLoading}
+                title={appSettings.save_as_note_shortcut}
+            >
+                New Note
+            </button>
+            <button
+                class="action-btn"
+                on:click={openAppendPicker}
+                disabled={isLoading}
+                title={appSettings.append_to_note_shortcut}
+            >
+                Append
+            </button>
+        </div>
+    {/if}
+
     <div class="resize-handle"></div>
 
     {#if isDragging}
@@ -1519,6 +1554,7 @@
 
     .capture-container.append-picker-open .accent-line,
     .capture-container.append-picker-open .content-wrapper,
+    .capture-container.append-picker-open .action-bar,
     .capture-container.append-picker-open .status-toast,
     .capture-container.append-picker-open .resize-handle {
         filter: blur(4px) brightness(0.62);
@@ -1667,6 +1703,38 @@
 
     textarea:disabled {
         opacity: 0.6;
+    }
+
+    .action-bar {
+        display: flex;
+        gap: 2px;
+        padding: 4px 12px 6px;
+        flex-shrink: 0;
+        justify-content: center;
+    }
+
+    .action-btn {
+        padding: 4px 12px;
+        border: none;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.10);
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+        letter-spacing: 0.2px;
+        line-height: 1.4;
+    }
+
+    .action-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.18);
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .action-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
     }
 
     .resize-handle {

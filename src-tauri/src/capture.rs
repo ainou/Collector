@@ -259,8 +259,10 @@ async fn ensure_daily_note_created(file_path: &Path, settings: &Settings) -> Res
         }
         if start.elapsed() > timeout {
             return Err(format!(
-                "Timed out waiting for daily note to be created: {:?}. \
-                 Please check that Obsidian is running and the vault \"{}\" exists.",
+                concat!(
+                    "Timed out waiting for daily note to be created: {:?}. ",
+                    "Please check that Obsidian is running and the vault \"{}\" exists."
+                ),
                 file_path, settings.vault_name
             ));
         }
@@ -774,5 +776,66 @@ mod tests {
 
         // Es wurde KEINE Datei erstellt
         assert!(!tmp.exists());
+    }
+
+    #[tokio::test]
+    async fn test_append_daily_note_integration() {
+        // Vollstaendiger Pfad: existierende Daily Note mit ## Log und ## Other
+        let tmp = std::env::temp_dir().join("collector-test-integration");
+        let file_path = tmp.join("daily.md");
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let initial = concat!(
+            "---\n",
+            "date: 2026-06-02\n",
+            "---\n",
+            "\n",
+            "## Log\n",
+            "\n",
+            "- old entry\n",
+            "\n",
+            "## Other\n",
+            "\n",
+            "- other content\n",
+        );
+        std::fs::write(&file_path, initial).unwrap();
+
+        let settings = Settings {
+            daily_note_target_heading: "## Log".to_string(),
+            daily_note_insert_position: "bottom".to_string(),
+            daily_note_create_heading_if_missing: false,
+            daily_note_create_if_missing: false,
+            ..Default::default()
+        };
+
+        let result = append_to_daily_note("- new entry", &file_path, &settings).await;
+        assert!(
+            result.is_ok(),
+            "append_to_daily_note should succeed: {:?}",
+            result
+        );
+
+        let content = std::fs::read_to_string(&file_path).unwrap();
+
+        // Alter Inhalt erhalten
+        assert!(content.contains("- old entry"));
+        assert!(content.contains("- other content"));
+        assert!(content.contains("## Other"));
+
+        // Neuer Eintrag vorhanden
+        assert!(content.contains("- new entry"));
+
+        // Reihenfolge: ## Log > old entry > new entry > ## Other
+        let log_pos = content.find("## Log").unwrap();
+        let old_pos = content.find("- old entry").unwrap();
+        let new_pos = content.find("- new entry").unwrap();
+        let other_pos = content.find("## Other").unwrap();
+
+        assert!(log_pos < old_pos, "## Log before - old entry");
+        assert!(old_pos < new_pos, "- old entry before - new entry");
+        assert!(new_pos < other_pos, "- new entry before ## Other");
+
+        // Aufraeumen
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
