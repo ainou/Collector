@@ -129,6 +129,89 @@
     </section>
 
     <section>
+        <h2>Daily Note Capture</h2>
+        <div class="field">
+            <label for="daily_note_target_heading">Target Heading</label>
+            <input
+                type="text"
+                id="daily_note_target_heading"
+                bind:value={settings.daily_note_target_heading}
+                placeholder="## Log"
+            />
+            <small>Leave empty to append to the end of the daily note.</small>
+        </div>
+
+        <div class="field">
+            <label for="daily_note_insert_position">Insert Position</label>
+            <select
+                id="daily_note_insert_position"
+                bind:value={settings.daily_note_insert_position}
+            >
+                <option value="bottom">Bottom of section</option>
+                <option value="top">Top of section</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label class="checkbox" for="daily_note_create_heading_if_missing">
+                <input
+                    type="checkbox"
+                    id="daily_note_create_heading_if_missing"
+                    bind:checked={settings.daily_note_create_heading_if_missing}
+                />
+                <span>Create heading if it does not exist</span>
+            </label>
+        </div>
+
+        <div class="field">
+            <label class="checkbox" for="daily_note_create_if_missing">
+                <input
+                    type="checkbox"
+                    id="daily_note_create_if_missing"
+                    bind:checked={settings.daily_note_create_if_missing}
+                />
+                <span>Create daily note if it does not exist</span>
+            </label>
+            {#if settings.daily_note_create_if_missing}
+                <small>
+                    Requires the Obsidian Advanced URI plugin. Collector opens
+                    Obsidian to create the daily note, then appends the capture
+                    to the configured section.
+                </small>
+            {/if}
+        </div>
+
+        <div class="field">
+            <label for="daily_note_create_timeout_ms"
+                >Wait timeout (ms)</label
+            >
+            <input
+                type="number"
+                id="daily_note_create_timeout_ms"
+                min="1000"
+                max="60000"
+                step="100"
+                bind:value={settings.daily_note_create_timeout_ms}
+            />
+            <small
+                >How long Collector waits for Obsidian to create the daily note
+                before giving up (1000–60000 ms).</small
+            >
+        </div>
+
+        <div class="field">
+            <label class="checkbox" for="show_capture_action_bar">
+                <input
+                    type="checkbox"
+                    id="show_capture_action_bar"
+                    bind:checked={settings.show_capture_action_bar}
+                />
+                <span>Show action buttons in capture window</span>
+            </label>
+        </div>
+    </section>
+
+    <section>
         <h2>Note Pickers</h2>
         <div class="field">
             <label class="checkbox" for="show_note_paths">
