@@ -10,6 +10,8 @@
     import WikilinkPicker from "./lib/WikilinkPicker.svelte";
     import CaptureActionBar from "./lib/capture/CaptureActionBar.svelte";
     import CaptureStatus from "./lib/capture/CaptureStatus.svelte";
+    import CaptureLoadingIndicator from "./lib/capture/CaptureLoadingIndicator.svelte";
+    import CaptureResizeHandle from "./lib/capture/CaptureResizeHandle.svelte";
     import { filterPaletteNotes } from "./lib/reader/paletteLogic.js";
     import { getAutocompleteResults } from "./lib/reader/autocomplete.js";
 
@@ -1388,7 +1390,7 @@
         on:append={openAppendPicker}
     />
 
-    <div class="resize-handle"></div>
+    <CaptureResizeHandle />
 
     {#if isDragging}
         <div class="drop-overlay"></div>
@@ -1448,9 +1450,7 @@
         on:close={closeAppendPicker}
     />
 
-    {#if isLoading}
-        <div class="loading-indicator"></div>
-    {/if}
+    <CaptureLoadingIndicator active={isLoading} />
 </div>
 
 <style>
@@ -1523,8 +1523,7 @@
     }
 
     .accent-line,
-    .content-wrapper,
-    .resize-handle {
+    .content-wrapper {
         transition:
             filter 0.12s ease,
             opacity 0.12s ease,
@@ -1535,7 +1534,7 @@
     .capture-container.append-picker-open .content-wrapper,
     .capture-container.append-picker-open :global(.action-bar),
     .capture-container.append-picker-open :global(.status-toast),
-    .capture-container.append-picker-open .resize-handle {
+    .capture-container.append-picker-open :global(.resize-handle) {
         filter: blur(4px) brightness(0.62);
         opacity: 0.56;
         transform: scale(0.997);
@@ -1686,43 +1685,9 @@
 
 
 
-    .resize-handle {
-        position: absolute;
-        bottom: 4px;
-        right: 4px;
-        width: 16px;
-        height: 16px;
-        cursor: nwse-resize;
-        opacity: 0.3;
-        transition: opacity 0.2s;
-    }
 
-    .resize-handle::before {
-        content: "";
-        position: absolute;
-        bottom: 0;
-        right: 0;
-        width: 12px;
-        height: 12px;
-        background:
-            linear-gradient(
-                135deg,
-                transparent 40%,
-                rgba(0, 0, 0, 0.2) 40%,
-                rgba(0, 0, 0, 0.2) 45%,
-                transparent 45%
-            ),
-            linear-gradient(
-                135deg,
-                transparent 50%,
-                rgba(0, 0, 0, 0.2) 50%,
-                rgba(0, 0, 0, 0.2) 55%,
-                transparent 55%
-            );
-        border-radius: 0 0 14px 0;
-    }
 
-    .capture-container:hover .resize-handle {
+    .capture-container:hover :global(.resize-handle) {
         opacity: 0.6;
     }
 
@@ -1743,31 +1708,7 @@
 
 
 
-    .loading-indicator {
-        position: absolute;
-        top: 2px;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-            90deg,
-            transparent,
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 85%, transparent),
-            transparent
-        );
-        background-size: 200% 100%;
-        animation: loading 1s ease-in-out infinite;
-        z-index: 100;
-    }
 
-    @keyframes loading {
-        0% {
-            background-position: 200% 0;
-        }
-        100% {
-            background-position: -200% 0;
-        }
-    }
 
     textarea::-webkit-scrollbar {
         width: 6px;
