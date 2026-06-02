@@ -1,4 +1,5 @@
 <script>
+    import Section from "./Section.svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { normalizeDelayValue } from "./delay-utils.js";
 
@@ -71,8 +72,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Edge Detection</h2>
+    <Section title="Edge Detection">
         <div class="field">
             <label class="checkbox">
                 <input
@@ -83,10 +83,9 @@
             </label>
             <small>Panels open when moving mouse to screen edges</small>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Open Delays</h2>
+    <Section title="Open Delays">
         <div class="delay-grid">
             <div class="delay-card">
                 <div class="delay-card-title">Note Window</div>
@@ -156,10 +155,9 @@
                 </small>
             </div>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Modifier Keys</h2>
+    <Section title="Modifier Keys">
         <div class="field">
             <div class="modifier-grid">
                 {#each ["cmd", "option", "shift", "ctrl"] as mod}
@@ -184,10 +182,9 @@
                 {/each}
             </div>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Excluded Apps</h2>
+    <Section title="Excluded Apps">
         <div class="field">
             {#if (settings.edge_excluded_apps ?? []).length > 0}
                 <ul class="exclusion-list">
@@ -242,7 +239,7 @@
                 </div>
             {/if}
         </div>
-    </section>
+    </Section>
 </div>
 
 <style>
@@ -310,7 +307,7 @@
         align-items: center;
         gap: 8px;
         padding: 8px 10px;
-        border: 1.5px solid rgba(0, 0, 0, 0.1);
+        border: 1.5px solid var(--settings-input-border, rgba(0, 0, 0, 0.1));
         border-radius: 8px;
         cursor: pointer;
         transition:
@@ -371,10 +368,10 @@
 
     .app-picker {
         margin-top: 8px;
-        border: 1.5px solid rgba(0, 0, 0, 0.1);
+        border: 1.5px solid var(--settings-input-border, rgba(0, 0, 0, 0.1));
         border-radius: 8px;
         overflow: hidden;
-        background: #fff;
+        background: var(--settings-input-bg, #fff);
     }
 
     .app-picker-search {

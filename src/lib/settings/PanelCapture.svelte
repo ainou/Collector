@@ -1,4 +1,6 @@
 <script>
+    import Section from "./Section.svelte";
+
     export let settings;
     export let showStatus;
 
@@ -8,8 +10,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Window Size</h2>
+    <Section title="Window Size">
         <div class="field-row">
             <div class="field">
                 <label for="window_width">Width (px)</label>
@@ -32,10 +33,9 @@
                 />
             </div>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Entry</h2>
+    <Section title="Entry">
         <div class="field">
             <label for="entry_header">Entry Header</label>
             <input
@@ -49,10 +49,9 @@
                 #### HH:mm or #### h:mm a
             </small>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Daily Note</h2>
+    <Section title="Daily Note">
         <div class="field">
             <label for="daily_note_folder">Daily Note Path</label>
             <input
@@ -141,10 +140,9 @@
                 before giving up (1000–60000 ms).</small
             >
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Buttons</h2>
+    <Section title="Buttons">
         <div class="field">
             <label class="checkbox" for="show_capture_action_bar">
                 <input
@@ -155,10 +153,9 @@
                 <span>Show action buttons</span>
             </label>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Pickers</h2>
+    <Section title="Pickers">
         <div class="field">
             <label class="checkbox" for="show_note_paths">
                 <input
@@ -186,10 +183,9 @@
             />
             <small>Number of notes shown in pickers (5–50)</small>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>New Note Defaults</h2>
+    <Section title="New Note Defaults">
         <div class="field">
             <label for="notes_folder">Notes Folder</label>
             <input
@@ -213,10 +209,9 @@
                 (am/pm)</small
             >
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Template</h2>
+    <Section title="Template">
         <div class="field">
             <label for="note_template">Template Text</label>
             <button
@@ -239,7 +234,7 @@
                 >
             {/if}
         </div>
-    </section>
+    </Section>
 </div>
 
 <style>

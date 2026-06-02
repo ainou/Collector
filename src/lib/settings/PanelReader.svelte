@@ -1,4 +1,5 @@
 <script>
+    import Section from "./Section.svelte";
     import { open } from "@tauri-apps/plugin-dialog";
     import {
         getReaderIconComponent,
@@ -97,8 +98,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Window Size</h2>
+    <Section title="Window Size">
         <div class="field-row">
             <div class="field">
                 <label for="reader_width">Width (px)</label>
@@ -121,10 +121,9 @@
                 />
             </div>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Pinned Notes</h2>
+    <Section title="Pinned Notes">
         {#if normalizePinnedNotes(settings.pinned_notes).length > 0}
             <div class="note-list">
                 {#each normalizePinnedNotes(settings.pinned_notes) as note}
@@ -196,10 +195,9 @@
         <button class="secondary" type="button" on:click={addPinnedNotes}
             >+ Add Note</button
         >
-    </section>
+    </Section>
 
-    <section>
-        <h2>Content Filters</h2>
+    <Section title="Content Filters">
         <div class="field">
             <label class="checkbox">
                 <input
@@ -261,7 +259,7 @@
                 Hide Callouts
             </label>
         </div>
-    </section>
+    </Section>
 </div>
 
 <style>
@@ -288,8 +286,8 @@
         gap: 12px;
         padding: 10px 12px;
         border-radius: 10px;
-        background: rgba(0, 0, 0, 0.03);
-        border: 1px solid rgba(0, 0, 0, 0.06);
+        background: color-mix(in srgb, var(--settings-text, black) 5%, transparent);
+        border: 1px solid var(--settings-border, rgba(0, 0, 0, 0.06));
     }
 
     .note-list-copy {
@@ -317,9 +315,9 @@
         height: 30px;
         padding: 0;
         border-radius: 8px;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        background: rgba(255, 255, 255, 0.72);
-        color: #6b7280;
+        border: 1px solid var(--settings-border, rgba(0, 0, 0, 0.08));
+        background: var(--settings-surface, rgba(255, 255, 255, 0.72));
+        color: var(--settings-text-secondary, #6b7280);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -327,16 +325,16 @@
     }
 
     .icon-choice:hover {
-        color: #374151;
-        border-color: rgba(139, 92, 246, 0.22);
-        background: rgba(139, 92, 246, 0.08);
+        color: var(--settings-nav-text, #374151);
+        border-color: color-mix(in srgb, var(--settings-accent, #8b5cf6) 25%, transparent);
+        background: color-mix(in srgb, var(--settings-accent, #8b5cf6) 10%, transparent);
         transform: none;
     }
 
     .icon-choice.selected {
-        color: #7c3aed;
-        border-color: rgba(124, 58, 237, 0.28);
-        background: rgba(139, 92, 246, 0.14);
+        color: var(--settings-accent, #7c3aed);
+        border-color: color-mix(in srgb, var(--settings-accent, #8b5cf6) 30%, transparent);
+        background: color-mix(in srgb, var(--settings-accent, #8b5cf6) 16%, transparent);
     }
 
     .icon-choice-none {
@@ -347,7 +345,7 @@
     .note-list-copy small {
         display: block;
         margin-top: 3px;
-        color: #6b7280;
+        color: var(--settings-text-secondary, #6b7280);
         overflow-wrap: anywhere;
     }
 
@@ -355,9 +353,9 @@
         margin: 10px 0 12px;
         padding: 12px;
         border-radius: 10px;
-        background: rgba(0, 0, 0, 0.03);
-        border: 1px dashed rgba(0, 0, 0, 0.08);
-        color: #6b7280;
+        background: color-mix(in srgb, var(--settings-text, black) 5%, transparent);
+        border: 1px dashed var(--settings-border, rgba(0, 0, 0, 0.08));
+        color: var(--settings-text-secondary, #6b7280);
         font-size: 12px;
     }
 
@@ -368,7 +366,7 @@
         border: none;
         border-radius: 8px;
         background: transparent;
-        color: #9ca3af;
+        color: var(--settings-section-title, #9ca3af);
         cursor: pointer;
         transition:
             background 0.2s ease,
@@ -376,7 +374,7 @@
     }
 
     .remove-note:hover {
-        background: rgba(239, 68, 68, 0.1);
+        background: color-mix(in srgb, #ef4444 12%, transparent);
         color: #dc2626;
     }
 

@@ -1,6 +1,6 @@
 <script>
     import { invoke } from "@tauri-apps/api/core";
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
     import PanelActivation from "./lib/settings/PanelActivation.svelte";
     import PanelCapture from "./lib/settings/PanelCapture.svelte";
     import PanelImages from "./lib/settings/PanelImages.svelte";
@@ -13,75 +13,61 @@
     import { defaultSettings } from "./lib/stores.js";
 
     let settings = { ...defaultSettings };
-    let originalSettings = { ...defaultSettings };
-    let isSaving = false;
+    let isLoaded = false;
     let statusMessage = "";
     let statusType = "";
     let activePanel = "vault";
 
     const settingsPanels = [
-        {
-            id: "vault",
-            label: "Vault",
-        },
-        {
-            id: "capture",
-            label: "Capture",
-        },
-        {
-            id: "reader",
-            label: "Reader",
-        },
-        {
-            id: "look",
-            label: "Look & Feel",
-        },
-        {
-            id: "shortcuts",
-            label: "Shortcuts",
-        },
-        {
-            id: "activation",
-            label: "Activation",
-        },
-        {
-            id: "images",
-            label: "Images",
-        },
+        { id: "vault", label: "Vault" },
+        { id: "capture", label: "Capture" },
+        { id: "reader", label: "Reader" },
+        { id: "look", label: "Look && Feel" },
+        { id: "shortcuts", label: "Shortcuts" },
+        { id: "activation", label: "Activation" },
+        { id: "images", label: "Images" },
     ];
 
-    async function loadSettings() {
-        try {
-            const loaded = await invoke("load_settings");
-            const normalized = {
-                ...defaultSettings,
-                ...loaded,
-                pinned_notes: normalizePinnedNotes(loaded.pinned_notes),
-            };
-            settings = normalized;
-            originalSettings = { ...normalized };
-        } catch (e) {
-            console.error("Failed to load settings:", e);
-            showStatus("Failed to load settings", "error");
-        }
-    }
+    // ── theme (follows app background/text colors) ────────
 
-    onMount(async () => {
-        await loadSettings();
-    });
+    $: bgColor = settings.background_color || "#f2f2f2";
+    $: textColor = settings.text_color || "#1a1a1a";
 
-    function showStatus(message, type = "success") {
-        statusMessage = message;
-        statusType = type;
-        setTimeout(() => {
-            statusMessage = "";
-            statusType = "";
-        }, 3000);
-    }
+    $: isLight = (() => {
+        const hex = bgColor.replace("#", "");
+        if (hex.length < 6) return true;
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+    })();
 
-    async function handleSave() {
-        isSaving = true;
+    $: t = {
+        bg: isLight ? bgColor : `color-mix(in srgb, ${bgColor} 92%, white)`,
+        surface: isLight
+            ? "rgba(255,255,255,0.95)"
+            : `color-mix(in srgb, ${bgColor} 75%, white)`,
+        text: textColor,
+        textSecondary: isLight ? "#6b7280" : "rgba(255,255,255,0.55)",
+        inputBg: isLight ? "#ffffff" : `color-mix(in srgb, ${bgColor} 60%, white)`,
+        border: isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)",
+        inputBorder: isLight ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.15)",
+        navText: isLight ? "#374151" : "rgba(255,255,255,0.7)",
+        navLabel: isLight ? "#111827" : "rgba(255,255,255,0.9)",
+        sectionTitle: isLight ? "#9ca3af" : "rgba(255,255,255,0.45)",
+        fieldLabel: isLight ? "#111827" : "rgba(255,255,255,0.85)",
+        btnBg: isLight ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.10)",
+        btnText: isLight ? "#111827" : "rgba(255,255,255,0.85)",
+        indicator: isLight ? "#6b7280" : "rgba(255,255,255,0.5)",
+    };
 
+    // ── auto-save ──────────────────────────────────────────
+
+    let lastSavedJson = "";
+    let pendingSave;
+    let autoSaveInterval;
+
+    async function performSave() {
         try {
             const payload = {
                 ...settings,
@@ -95,27 +81,67 @@
             };
 
             await invoke("save_settings", { newSettings: payload });
-
             settings = { ...payload };
-            originalSettings = { ...payload };
-
-            showStatus("✓ Settings saved", "success");
+            lastSavedJson = JSON.stringify(payload);
+            showStatus("Saved", "success");
         } catch (e) {
-            console.error("Failed to save settings:", e);
-            console.error("Error details:", JSON.stringify(e));
-            showStatus("Failed to save settings: " + e.toString(), "error");
-        } finally {
-            isSaving = false;
-            settings = { ...settings };
+            console.error("Auto-save failed:", e);
+            showStatus("Save failed: " + e.toString(), "error");
         }
     }
 
-    async function handleCancel() {
-        settings = { ...originalSettings };
+    // ── lifecycle ──────────────────────────────────────────
 
+    async function loadSettings() {
+        try {
+            const loaded = await invoke("load_settings");
+            const normalized = {
+                ...defaultSettings,
+                ...loaded,
+                pinned_notes: normalizePinnedNotes(loaded.pinned_notes),
+            };
+            settings = normalized;
+            lastSavedJson = JSON.stringify(normalized);
+            isLoaded = true;
+        } catch (e) {
+            console.error("Failed to load settings:", e);
+            showStatus("Failed to load settings", "error");
+        }
+    }
+
+    onMount(async () => {
+        await loadSettings();
+
+        // Poll for deep changes (bind:value mutates in place)
+        autoSaveInterval = setInterval(() => {
+            if (!isLoaded) return;
+            const current = JSON.stringify(settings);
+            if (current !== lastSavedJson) {
+                clearTimeout(pendingSave);
+                pendingSave = setTimeout(performSave, 300);
+            }
+        }, 200);
+    });
+
+    onDestroy(() => {
+        clearInterval(autoSaveInterval);
+        clearTimeout(pendingSave);
+    });
+
+    // ── ui helpers ─────────────────────────────────────────
+
+    function showStatus(message, type = "success") {
+        statusMessage = message;
+        statusType = type;
+        setTimeout(() => {
+            statusMessage = "";
+            statusType = "";
+        }, 2000);
+    }
+
+    async function handleClose() {
         statusMessage = "";
         statusType = "";
-
         try {
             await invoke("close_settings");
         } catch (e) {
@@ -128,17 +154,32 @@
             settings = { ...defaultSettings };
         }
     }
-
-    $: hasChanges =
-        JSON.stringify(settings) !== JSON.stringify(originalSettings);
 </script>
 
-<div class="settings-container">
+<div class="settings-container"
+    style="
+        --settings-bg: {t.bg};
+        --settings-surface: {t.surface};
+        --settings-text: {t.text};
+        --settings-text-secondary: {t.textSecondary};
+        --settings-input-bg: {t.inputBg};
+        --settings-border: {t.border};
+        --settings-input-border: {t.inputBorder};
+        --settings-nav-text: {t.navText};
+        --settings-nav-label: {t.navLabel};
+        --settings-section-title: {t.sectionTitle};
+        --settings-label: {t.fieldLabel};
+        --settings-btn-bg: {t.btnBg};
+        --settings-btn-text: {t.btnText};
+        --settings-indicator: {t.indicator};
+        --settings-accent: {settings.accent_color || '#8b5cf6'};
+    "
+>
     <header>
         <h1>Settings</h1>
-        {#if statusMessage}
-            <div class="status {statusType}">{statusMessage}</div>
-        {/if}
+        <span class="save-indicator" class:visible={statusMessage}>
+            {statusMessage}
+        </span>
     </header>
 
     <main>
@@ -179,16 +220,9 @@
     </main>
 
     <footer>
-        <button class="secondary" on:click={handleReset}>Reset</button>
+        <button class="secondary" on:click={handleReset}>Reset All</button>
         <div class="spacer"></div>
-        <button class="secondary" on:click={handleCancel}>Cancel</button>
-        <button
-            class="primary"
-            on:click={handleSave}
-            disabled={isSaving || !hasChanges}
-        >
-            {isSaving ? "Saving..." : "Save"}
-        </button>
+        <button class="secondary" on:click={handleClose}>Close</button>
     </footer>
 </div>
 
@@ -199,19 +233,19 @@
         height: 100vh;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
         font-size: 13px;
-        color: #1a1a1a;
-        background: #f2f2f2;
+        color: var(--settings-text);
+        background: var(--settings-bg);
     }
 
     header {
         padding: 12px 18px;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--settings-surface);
         backdrop-filter: blur(40px);
         -webkit-backdrop-filter: blur(40px);
-        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        border-bottom: 1px solid var(--settings-border);
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 12px;
     }
 
     header h1 {
@@ -221,32 +255,17 @@
         letter-spacing: -0.3px;
     }
 
-    .status {
-        padding: 8px 14px;
-        border-radius: 8px;
-        font-size: 12px;
+    .save-indicator {
+        font-size: 11px;
         font-weight: 500;
-        letter-spacing: 0.2px;
-        animation: slideIn 0.3s ease;
+        color: var(--settings-indicator);
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        letter-spacing: 0.1px;
     }
 
-    @keyframes slideIn {
-        from {
-            opacity: 0;
-            transform: translateX(-8px);
-        }
-    }
-
-    .status.success {
-        background: var(--success-bg);
-        color: var(--success-color);
-        border: 1px solid var(--success-border);
-    }
-
-    .status.error {
-        background: var(--error-bg);
-        color: var(--error-color);
-        border: 1px solid var(--error-border);
+    .save-indicator.visible {
+        opacity: 1;
     }
 
     main {
@@ -264,8 +283,8 @@
 
     .settings-sidebar {
         min-height: 0;
-        background: rgba(255, 255, 255, 0.95);
-        border-right: 1px solid rgba(0, 0, 0, 0.07);
+        background: var(--settings-surface);
+        border-right: 1px solid var(--settings-border);
         padding-right: 0;
     }
 
@@ -288,27 +307,27 @@
         background: none;
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
-        color: #374151;
+        color: var(--settings-nav-text);
         text-align: left;
         transition: background 0.15s ease;
     }
 
     .nav-item:hover {
-        background: rgba(0, 0, 0, 0.03);
+        background: color-mix(in srgb, var(--settings-text) 8%, transparent);
     }
 
     .nav-item.active {
-        background: rgba(0, 0, 0, 0.05);
+        background: color-mix(in srgb, var(--settings-text) 12%, transparent);
     }
 
     .nav-item.active:hover {
-        background: rgba(0, 0, 0, 0.05);
+        background: color-mix(in srgb, var(--settings-text) 12%, transparent);
     }
 
     .nav-item-label {
         font-size: 13px;
         font-weight: 500;
-        color: #111827;
+        color: var(--settings-nav-label);
     }
 
     .settings-content {
@@ -327,56 +346,6 @@
         padding-bottom: 12px;
     }
 
-    :global(.settings-panel > section) {
-        background: none;
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        padding: 0 0 24px 0;
-        margin-top: 0px;
-        padding-bottom: 12px;
-        border-top: 1px solid rgba(0, 0, 0, 0.07);
-    }
-
-    :global(.settings-panel > section:first-of-type) {
-        border-top: none;
-        margin-top: 0;
-    }
-
-    :global(.settings-panel > section h2) {
-        font-size: 14px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #9ca3af;
-        margin: 0 0 4px 0;
-        padding-top: 12px;
-        padding-bottom: 0px;
-    }
-
-    :global(.panel-intro) {
-        background: none;
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        padding: 0 0 8px 0;
-        margin-top: 0;
-        border-top: none;
-    }
-
-    :global(.panel-intro h2) {
-        font-size: 18px;
-        font-weight: 600;
-        color: #111827;
-        text-transform: none;
-        letter-spacing: -0.3px;
-        margin-bottom: 6px;
-    }
-
     :global(.field) {
         margin-bottom: 4px;
     }
@@ -390,7 +359,7 @@
         display: block;
         font-size: 13px;
         font-weight: 500;
-        color: #111827;
+        color: var(--settings-label);
         margin-bottom: 5px;
         padding-top: 12px;
     }
@@ -399,7 +368,7 @@
         display: block;
         font-size: 11px;
         font-weight: 400;
-        color: #9ca3af;
+        color: var(--settings-text-secondary);
         margin-top: 4px;
         padding-left: 14px;
         padding-bottom: 4px;
@@ -411,10 +380,11 @@
     :global(textarea) {
         width: 100%;
         padding: 9px 12px;
-        border: 1.5px solid rgba(0, 0, 0, 0.1);
+        border: 1.5px solid var(--settings-input-border);
         border-radius: 6px;
         font-size: 13px;
-        background: white;
+        background: var(--settings-input-bg);
+        color: var(--settings-text);
         transition: all 0.2s ease;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
     }
@@ -431,7 +401,7 @@
     :global(select:focus),
     :global(textarea:focus) {
         outline: none;
-        background: rgba(0, 0, 0, 0.01);
+        background: color-mix(in srgb, var(--settings-input-bg) 98%, var(--settings-accent));
     }
 
     :global(.section-description) {
@@ -449,17 +419,12 @@
         font-weight: normal;
     }
 
-    .modifier-help {
-        display: block;
-        margin-bottom: 8px;
-    }
-
     footer {
         padding: 16px 24px;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--settings-surface);
         backdrop-filter: blur(40px);
         -webkit-backdrop-filter: blur(40px);
-        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        border-top: 1px solid var(--settings-border);
         display: flex;
         gap: 10px;
         align-items: center;
@@ -479,41 +444,14 @@
         transition: all 0.2s ease;
     }
 
-    :global(button.primary) {
-        background: linear-gradient(
-            135deg,
-            var(--accent-color, #8b5cf6) 0%,
-            #7c3aed 100%
-        );
-        color: white;
-        border: 1px solid
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 35%, transparent);
-        box-shadow: 0 2px 8px
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 25%, transparent);
-    }
-
-    :global(button.primary:hover:not(:disabled)) {
-        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-        box-shadow: 0 4px 12px
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 30%, transparent);
-        transform: translateY(-1px);
-    }
-
-    :global(button.primary:disabled) {
-        opacity: 0.75;
-        background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-        color: rgba(255, 255, 255, 0.96);
-        cursor: not-allowed;
-    }
-
     :global(button.secondary) {
-        background: rgba(0, 0, 0, 0.07);
-        color: #111827;
+        background: var(--settings-btn-bg);
+        color: var(--settings-btn-text);
         border: none;
     }
 
     :global(button.secondary:hover) {
-        background: #d5d5d5;
+        background: color-mix(in srgb, var(--settings-btn-bg) 80%, var(--settings-text));
     }
 
     :global(.path-picker) {

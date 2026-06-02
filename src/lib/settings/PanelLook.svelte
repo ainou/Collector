@@ -1,4 +1,5 @@
 <script>
+    import Section from "./Section.svelte";
     import { getSystemFonts } from "../utils.js";
 
     export let settings;
@@ -10,8 +11,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Window Surface</h2>
+    <Section title="Window Surface">
         <div class="field">
             <label for="border_radius">Corner Radius: {settings.border_radius}px</label>
             <input
@@ -89,10 +89,9 @@
             />
             <small>Brightens dark areas or darkens light areas</small>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Accent & Links</h2>
+    <Section title="Accent & Links">
         <div class="field">
             <label for="accent_color">Accent Color</label>
             <div class="color-input">
@@ -139,10 +138,9 @@
                 />
             </div>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Typography</h2>
+    <Section title="Typography">
         <div class="field">
             <label for="font_family">Font Family</label>
             <select id="font_family" bind:value={settings.font_family}>
@@ -175,9 +173,9 @@
                     pattern="^#[0-9A-Fa-f]{6}$"
                 />
             </div>
-            <small>Default: White (#ffffff)</small>
+            <small>Default: #ffffff</small>
         </div>
-    </section>
+    </Section>
 </div>
 
 <style>
@@ -196,7 +194,7 @@
         width: 40px;
         height: 32px;
         padding: 2px;
-        border: 1px solid #ddd;
+        border: 1px solid var(--settings-input-border, #ddd);
         border-radius: 4px;
         cursor: pointer;
     }

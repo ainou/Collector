@@ -1,4 +1,5 @@
 <script>
+    import Section from "./Section.svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { open } from "@tauri-apps/plugin-dialog";
 
@@ -38,8 +39,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Vault</h2>
+    <Section title="Vault">
         <div class="field">
             <label for="vault_name">Vault Name</label>
             <input
@@ -83,7 +83,7 @@
                 appearing correctly.
             </small>
         </div>
-    </section>
+    </Section>
 </div>
 
 <style>
@@ -95,7 +95,7 @@
     }
 
     .index-status {
-        color: #666;
+        color: var(--settings-text-secondary, #666);
         font-size: 11px;
     }
 </style>

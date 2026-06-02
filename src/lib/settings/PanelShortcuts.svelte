@@ -1,4 +1,6 @@
 <script>
+    import Section from "./Section.svelte";
+
     export let settings;
     export let showStatus;
 
@@ -60,8 +62,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Note Window</h2>
+    <Section title="Note Window">
         <div class="field">
             <label for="global_shortcut">Open Note Window</label>
             <input
@@ -97,10 +98,9 @@
                 <small>Leave empty to disable closing via shortcut</small>
             </div>
         {/if}
-    </section>
+    </Section>
 
-    <section>
-        <h2>Reader Window</h2>
+    <Section title="Reader Window">
         <div class="field">
             <label for="reader_shortcut">Open Reader Window</label>
             <input
@@ -136,10 +136,9 @@
                 <small>Leave empty to disable closing via shortcut</small>
             </div>
         {/if}
-    </section>
+    </Section>
 
-    <section>
-        <h2>Copy Text to Collector</h2>
+    <Section title="Copy Text to Collector">
         <div class="field">
             <label for="capture_text_shortcut">Shortcut</label>
             <input
@@ -161,10 +160,9 @@
                 >, then restart the app.
             </p>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Save Actions</h2>
+    <Section title="Save Actions">
         <div class="field">
             <label for="save_to_daily_shortcut">Save to Daily Note</label>
             <input
@@ -201,7 +199,7 @@
                     handleShortcutKeyDown(e, "append_to_note_shortcut")}
             />
         </div>
-    </section>
+    </Section>
 </div>
 
 <style>
@@ -214,20 +212,20 @@
         margin-top: 14px;
         padding: 13px 14px;
         border-radius: 12px;
-        border: 1px solid rgba(15, 23, 42, 0.08);
-        background: rgba(15, 23, 42, 0.035);
+        border: 1px solid var(--settings-border, rgba(15, 23, 42, 0.08));
+        background: color-mix(in srgb, var(--settings-text, black) 4%, transparent);
     }
 
     .info-note-title {
         font-size: 12px;
         font-weight: 600;
-        color: #111827;
+        color: var(--settings-label, #111827);
         margin-bottom: 4px;
     }
 
     .info-note p {
         margin: 0;
-        color: #6b7280;
+        color: var(--settings-text-secondary, #6b7280);
         font-size: 12px;
         line-height: 1.45;
     }

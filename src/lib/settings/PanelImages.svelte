@@ -1,4 +1,5 @@
 <script>
+    import Section from "./Section.svelte";
     import { open } from "@tauri-apps/plugin-dialog";
     import { normalizeComparablePath } from "./path-utils.js";
 
@@ -80,8 +81,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Storage</h2>
+    <Section title="Storage">
         <div class="field">
             <label for="screenshot_path">Image Folder</label>
             <div class="path-picker">
@@ -110,10 +110,9 @@
             />
             <small>Supports: YYYY, MM, DD, HH, mm, ss</small>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Embed Defaults</h2>
+    <Section title="Embed Defaults">
         <div class="field">
             <label for="compression_max_kb">Max. Image Size (KB)</label>
             <input
@@ -140,5 +139,5 @@
                 no width)</small
             >
         </div>
-    </section>
+    </Section>
 </div>
