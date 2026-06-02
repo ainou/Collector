@@ -2,12 +2,12 @@
     import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
     import PanelActivation from "./lib/settings/PanelActivation.svelte";
+    import PanelCapture from "./lib/settings/PanelCapture.svelte";
     import PanelImages from "./lib/settings/PanelImages.svelte";
     import PanelLook from "./lib/settings/PanelLook.svelte";
-    import PanelNoteWindow from "./lib/settings/PanelNoteWindow.svelte";
-    import PanelObsidian from "./lib/settings/PanelObsidian.svelte";
-    import PanelReaderWindow from "./lib/settings/PanelReaderWindow.svelte";
+    import PanelReader from "./lib/settings/PanelReader.svelte";
     import PanelShortcuts from "./lib/settings/PanelShortcuts.svelte";
+    import PanelVault from "./lib/settings/PanelVault.svelte";
     import { normalizeDelayValue } from "./lib/settings/delay-utils.js";
     import { normalizePinnedNotes } from "./lib/settings/pinned-notes.js";
     import { defaultSettings } from "./lib/stores.js";
@@ -17,36 +17,36 @@
     let isSaving = false;
     let statusMessage = "";
     let statusType = "";
-    let activePanel = "obsidian";
+    let activePanel = "vault";
 
     const settingsPanels = [
         {
-            id: "obsidian",
-            label: "Obsidian Integration",
+            id: "vault",
+            label: "Vault",
         },
         {
-            id: "images",
-            label: "Images",
+            id: "capture",
+            label: "Capture",
+        },
+        {
+            id: "reader",
+            label: "Reader",
         },
         {
             id: "look",
-            label: "Look",
+            label: "Look & Feel",
         },
         {
-            id: "note-window",
-            label: "Note Window",
-        },
-        {
-            id: "reader-window",
-            label: "Reader Window",
+            id: "shortcuts",
+            label: "Shortcuts",
         },
         {
             id: "activation",
             label: "Activation",
         },
         {
-            id: "shortcuts",
-            label: "Shortcuts",
+            id: "images",
+            label: "Images",
         },
     ];
 
@@ -159,20 +159,20 @@
             </aside>
 
             <div class="settings-content">
-                {#if activePanel === "obsidian"}
-                    <PanelObsidian bind:settings {showStatus} />
-                {:else if activePanel === "images"}
-                    <PanelImages bind:settings {showStatus} />
+                {#if activePanel === "vault"}
+                    <PanelVault bind:settings {showStatus} />
+                {:else if activePanel === "capture"}
+                    <PanelCapture bind:settings {showStatus} />
+                {:else if activePanel === "reader"}
+                    <PanelReader bind:settings {showStatus} />
                 {:else if activePanel === "look"}
                     <PanelLook bind:settings {showStatus} />
-                {:else if activePanel === "note-window"}
-                    <PanelNoteWindow bind:settings {showStatus} />
-                {:else if activePanel === "reader-window"}
-                    <PanelReaderWindow bind:settings {showStatus} />
-                {:else if activePanel === "activation"}
-                    <PanelActivation bind:settings {showStatus} />
                 {:else if activePanel === "shortcuts"}
                     <PanelShortcuts bind:settings {showStatus} />
+                {:else if activePanel === "activation"}
+                    <PanelActivation bind:settings {showStatus} />
+                {:else if activePanel === "images"}
+                    <PanelImages bind:settings {showStatus} />
                 {/if}
             </div>
         </div>
