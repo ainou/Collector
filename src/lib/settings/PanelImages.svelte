@@ -122,7 +122,7 @@
                 id="compression_max_kb"
                 bind:value={settings.compression_max_kb}
                 min="50"
-                max="1000"
+                max="2000"
                 step="50"
             />
             <small>Images will be compressed to this size</small>

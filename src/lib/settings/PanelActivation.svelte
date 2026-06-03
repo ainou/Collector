@@ -5,6 +5,7 @@
 
     export let settings;
     export let showStatus;
+    export let onChange = () => {};
 
     let showAppPicker = false;
     let runningApps = [];

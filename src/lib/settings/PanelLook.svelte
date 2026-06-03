@@ -76,9 +76,7 @@
         </div>
         <div class="field">
             <label for="window_brightness"
-                >Brightness: {(settings.window_brightness ?? 0 > 0)
-                    ? ""
-                    : ""}{settings.window_brightness ?? 0}</label
+                >Brightness: {settings.window_brightness ?? 0}</label
             >
             <input
                 type="range"
@@ -156,7 +154,7 @@
                 id="font_size"
                 bind:value={settings.font_size}
                 min="10"
-                max="20"
+                max="24"
             />
         </div>
         <div class="field">
