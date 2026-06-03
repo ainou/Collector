@@ -324,7 +324,7 @@ fn default_capture_text_shortcut() -> String {
 }
 
 fn default_daily_note_folder() -> String {
-    "Journal/".to_string()
+    String::new()
 }
 
 fn default_daily_note_format() -> String {

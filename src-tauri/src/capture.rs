@@ -318,6 +318,11 @@ pub async fn append_to_daily_note(
     if captured_text.trim().is_empty() {
         return Err("Nothing to append".to_string());
     }
+    if settings.daily_note_folder.trim().is_empty() {
+        return Err(
+            "Daily Note folder is not configured. Please set it in Settings.".to_string(),
+        );
+    }
 
     log::info!(
         "Appending to daily note (file={}, chars={})",
@@ -766,6 +771,7 @@ mod tests {
         let _ = std::fs::remove_file(&tmp); // clean slate
 
         let settings = Settings {
+            daily_note_folder: "Journal/".to_string(),
             daily_note_create_if_missing: false,
             ..Default::default()
         };
@@ -802,6 +808,7 @@ mod tests {
         std::fs::write(&file_path, initial).unwrap();
 
         let settings = Settings {
+            daily_note_folder: "Journal/".to_string(),
             daily_note_target_heading: "### Note".to_string(),
             daily_note_insert_position: "bottom".to_string(),
             daily_note_create_heading_if_missing: false,

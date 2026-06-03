@@ -110,7 +110,11 @@ fn resolve_vault_read_path(settings: &Settings, requested_path: &str) -> Result<
     }
 }
 
-fn resolve_vault_write_path(settings: &Settings, requested_path: &str) -> Result<PathBuf, String> {
+fn resolve_vault_write_path(
+    settings: &Settings,
+    requested_path: &str,
+    create_parent: bool,
+) -> Result<PathBuf, String> {
     let vault_root = canonical_vault_root(settings)?;
     let normalized = normalize_path(Path::new(requested_path))?;
     let candidate = if normalized.is_absolute() {
@@ -128,7 +132,16 @@ fn resolve_vault_write_path(settings: &Settings, requested_path: &str) -> Result
     let parent = candidate
         .parent()
         .ok_or_else(|| "Invalid note path".to_string())?;
-    fs::create_dir_all(parent).map_err(|e| format!("Failed to create note directory: {}", e))?;
+
+    if create_parent {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create note directory: {}", e))?;
+    } else if !parent.exists() {
+        return Err(
+            "Daily Notes folder not found. Please check your folder path in Settings."
+                .to_string(),
+        );
+    }
 
     let filename = candidate
         .file_name()
@@ -325,7 +338,7 @@ async fn save_as_note(
         None => capture::build_note_relative_path(&settings),
     };
 
-    let resolved = resolve_vault_write_path(&settings, &relative_path)?;
+    let resolved = resolve_vault_write_path(&settings, &relative_path, true)?;
     let filename = resolved
         .file_name()
         .and_then(|value| value.to_str())
@@ -355,8 +368,13 @@ async fn append_to_daily_note(
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     settings.validate()?;
+    if settings.daily_note_folder.trim().is_empty() {
+        return Err(
+            "Daily Note folder is not configured. Please set it in Settings.".to_string(),
+        );
+    }
     let daily_path = capture::build_daily_note_path(&settings);
-    let resolved = resolve_vault_write_path(&settings, &daily_path)?;
+    let resolved = resolve_vault_write_path(&settings, &daily_path, false)?;
 
     capture::append_to_daily_note(&text, &resolved, &settings).await?;
 
@@ -371,7 +389,7 @@ async fn append_to_note(
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     settings.validate()?;
-    let resolved = resolve_vault_write_path(&settings, &path)?;
+    let resolved = resolve_vault_write_path(&settings, &path, false)?;
 
     capture::append_to_note(&text, &resolved, &settings)?;
 
@@ -398,7 +416,7 @@ async fn write_note_file(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
-    let resolved = resolve_vault_write_path(&settings, &path)?;
+    let resolved = resolve_vault_write_path(&settings, &path, true)?;
     fs::write(&resolved, content).map_err(|e| format!("Failed to write file: {}", e))
 }
 
@@ -540,8 +558,13 @@ async fn list_vault_notes(
 async fn get_daily_note_path(state: tauri::State<'_, AppState>) -> Result<String, String> {
     let settings = state.settings.read().await.clone();
     settings.validate()?;
+    if settings.daily_note_folder.trim().is_empty() {
+        return Err(
+            "Daily Note folder is not configured. Please set it in Settings.".to_string(),
+        );
+    }
     let daily_path = capture::build_daily_note_path(&settings);
-    let file_path = resolve_vault_write_path(&settings, &daily_path)?;
+    let file_path = resolve_vault_write_path(&settings, &daily_path, false)?;
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -1263,7 +1286,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = resolve_vault_write_path(&settings, "../outside.md");
+        let result = resolve_vault_write_path(&settings, "../outside.md", false);
         assert!(result.is_err());
 
         let _ = fs::remove_dir_all(vault_dir);

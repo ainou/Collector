@@ -15,7 +15,7 @@ export const defaultSettings = {
   overlay_color: '#ffffff',
   font_family: '-apple-system, BlinkMacSystemFont, SF Pro Display',
   font_size: 14,
-  daily_note_folder: 'Journal/',
+  daily_note_folder: '',
   daily_note_format: 'YYYY-MM-DD',
   daily_note_path: '',
   screenshot_path: 'Grafiken/Screenshots',

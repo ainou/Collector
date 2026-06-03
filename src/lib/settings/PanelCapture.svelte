@@ -59,9 +59,9 @@
                 type="text"
                 id="daily_note_folder"
                 bind:value={settings.daily_note_folder}
-                placeholder="Journal/Notes/"
+                placeholder="e.g. Daily Notes/"
             />
-            <small>Relative path in vault for daily notes</small>
+            <small>Relative path in vault for daily notes. Must match your Obsidian Daily Notes folder path.</small>
         </div>
         <div class="field">
             <label for="daily_note_format">Daily Note Format</label>
