@@ -41,13 +41,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   file picker.
 
 ### Changed
-- Action buttons border radius scaled to half of window corner radius;
-  max corner radius increased from 12 to 20.
 - Daily note captures now use section-insert logic instead of raw
   file append. Existing behaviour is preserved when no target heading
   is configured.
 - Section headings in settings larger (16 px) with more spacing.
-- Settings panel labels tidied up: "Look && Feel" → "Look & Feel",
+- Settings panel labels tidied up: "Look" → "Look & Feel",
   "Note Window" → "Capture Window" throughout.
 - Success labels ("✓ Saved", "✓ …", "✓ Appended") removed from all
   three capture actions. Window closing is now the only success
@@ -56,6 +54,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - Hardcoded "Journal" default for daily note folder removed — user-configured path is now respected; an error is shown if the folder is empty or missing.
 - Daily Notes folder is no longer silently created if it doesn't exist — an error is shown immediately instead.
+- Daily Note tab now uses a safer mechanism to always reflect the current day
+  when the Reader is opened.
 - Capture text shortcut (Cmd+Shift+C) now reliably reads selected text
   via clipboard sentinel instead of unreliable AXSelectedText API.
 - Blur and saturation had no effect when Brightness was set to 0.
