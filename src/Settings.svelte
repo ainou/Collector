@@ -87,7 +87,10 @@
     function scheduleAutoSave() {
         if (!isLoaded) return;
         clearTimeout(saveTimer);
-        saveTimer = setTimeout(performSave, 400);
+        saveTimer = setTimeout(() => {
+            saveTimer = null;
+            void performSave();
+        }, 400);
     }
 
     function flushPendingSave() {
