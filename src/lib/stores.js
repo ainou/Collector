@@ -5,6 +5,7 @@ import {
 
 export const defaultSettings = {
   vault_name: 'Vault',
+  vault_path: '',
   edge_side: 'right',
   window_width: 350,
   window_height: 600,

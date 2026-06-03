@@ -447,6 +447,10 @@ fn normalize_screenshot_dir_path(path: &str, vault_path: &str) -> String {
     trimmed.replace('\\', "/")
 }
 
+fn raw_setting_exists(raw_settings: Option<&serde_json::Value>, field: &str) -> bool {
+    raw_settings.and_then(|value| value.get(field)).is_some()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -561,42 +565,30 @@ impl Settings {
         Ok(app_dir.join("config.json"))
     }
 
-    pub fn load() -> Result<Self, String> {
-        let config_path = Self::config_path()?;
+    fn load_from_content(content: &str) -> Result<(Self, bool), String> {
+        let raw_settings = serde_json::from_str::<serde_json::Value>(content).ok();
+        let raw_settings_ref = raw_settings.as_ref();
+        let has_screenshot_path = raw_setting_exists(raw_settings_ref, "screenshot_path");
+        let has_daily_note_folder = raw_setting_exists(raw_settings_ref, "daily_note_folder");
+        let has_daily_note_format = raw_setting_exists(raw_settings_ref, "daily_note_format");
 
-        if config_path.exists() {
-            let content = fs::read_to_string(&config_path)
-                .map_err(|e| format!("Failed to read config file: {}", e))?;
-            let raw_settings = serde_json::from_str::<serde_json::Value>(&content).ok();
-            let has_screenshot_path = raw_settings
-                .as_ref()
-                .and_then(|value| value.get("screenshot_path"))
-                .is_some();
+        let mut settings: Settings = serde_json::from_str(content)
+            .map_err(|e| format!("Failed to parse config file: {}", e))?;
 
-            let mut settings =
-                serde_json::from_str(&content).or_else(|e| -> Result<Settings, String> {
-                    log::warn!("Config corrupted, using defaults: {}", e);
-                    let defaults = Self::default();
-                    if let Err(save_error) = defaults.save() {
-                        log::warn!(
-                            "Failed to persist default settings after config recovery: {}",
-                            save_error
-                        );
-                    }
-                    Ok(defaults)
-                })?;
+        let mut needs_save = false;
 
-            let mut needs_save = false;
+        if !has_screenshot_path && !settings.image_folder.trim().is_empty() {
+            settings.screenshot_path = settings.image_folder.trim().to_string();
+            needs_save = true;
+        }
 
-            if !has_screenshot_path && !settings.image_folder.trim().is_empty() {
-                settings.screenshot_path = settings.image_folder.trim().to_string();
-                needs_save = true;
-            }
+        // Migration: convert old daily_note_path to new fields.
+        // Decide from the raw JSON fields, because serde defaults already populate
+        // daily_note_folder / daily_note_format before migration runs.
+        if !settings.daily_note_path.trim().is_empty() {
+            let path = settings.daily_note_path.trim().to_string();
 
-            // Migration: convert old daily_note_path to new fields.
-            if !settings.daily_note_path.is_empty() && settings.daily_note_folder.is_empty() {
-                let path = &settings.daily_note_path;
-
+            if !has_daily_note_folder && !has_daily_note_format {
                 if let Some(last_slash) = path.rfind('/') {
                     settings.daily_note_folder = path[..=last_slash].to_string();
                     let filename = &path[last_slash + 1..];
@@ -605,7 +597,7 @@ impl Settings {
                         filename.strip_suffix(".md").unwrap_or(filename).to_string();
                 } else {
                     settings.daily_note_format =
-                        path.strip_suffix(".md").unwrap_or(path).to_string();
+                        path.strip_suffix(".md").unwrap_or(&path).to_string();
                 }
 
                 log::info!(
@@ -613,20 +605,45 @@ impl Settings {
                     redact_path_str(&settings.daily_note_folder),
                     settings.daily_note_format.chars().count()
                 );
-
-                settings.daily_note_path = String::new();
-                needs_save = true;
             }
 
-            if settings.normalize_pinned_note_paths() {
-                log::info!("Migrated pinned note paths to vault-relative form");
-                needs_save = true;
-            }
+            settings.daily_note_path = String::new();
+            needs_save = true;
+        }
 
-            if settings.normalize_screenshot_path() {
-                log::info!("Migrated screenshot path to vault-relative form");
-                needs_save = true;
-            }
+        if settings.normalize_pinned_note_paths() {
+            log::info!("Migrated pinned note paths to vault-relative form");
+            needs_save = true;
+        }
+
+        if settings.normalize_screenshot_path() {
+            log::info!("Migrated screenshot path to vault-relative form");
+            needs_save = true;
+        }
+
+        Ok((settings, needs_save))
+    }
+
+    pub fn load() -> Result<Self, String> {
+        let config_path = Self::config_path()?;
+
+        if config_path.exists() {
+            let content = fs::read_to_string(&config_path)
+                .map_err(|e| format!("Failed to read config file: {}", e))?;
+
+            let (settings, needs_save) = Self::load_from_content(&content).or_else(
+                |e| -> Result<(Settings, bool), String> {
+                    log::warn!("Config corrupted, using defaults: {}", e);
+                    let defaults = Self::default();
+                    if let Err(save_error) = defaults.save() {
+                        log::warn!(
+                            "Failed to persist default settings after config recovery: {}",
+                            save_error
+                        );
+                    }
+                    Ok((defaults, false))
+                },
+            )?;
 
             if needs_save {
                 if let Err(save_error) = settings.save() {
@@ -1086,6 +1103,69 @@ mod tests {
     }
 
     // ── new daily note settings tests ─────────────────────
+
+    fn config_json_with_legacy_daily_path(daily_note_path: &str) -> String {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        let object = value.as_object_mut().unwrap();
+
+        object.insert(
+            "daily_note_path".to_string(),
+            serde_json::json!(daily_note_path),
+        );
+        object.remove("daily_note_folder");
+        object.remove("daily_note_format");
+
+        serde_json::to_string(&value).unwrap()
+    }
+
+    #[test]
+    fn migrates_legacy_daily_note_path_with_folder() {
+        let content = config_json_with_legacy_daily_path("Tagebuch/YYYY-MM-DD.md");
+        let (settings, needs_save) = Settings::load_from_content(&content).unwrap();
+
+        assert!(needs_save);
+        assert_eq!(settings.daily_note_folder, "Tagebuch/");
+        assert_eq!(settings.daily_note_format, "YYYY-MM-DD");
+        assert_eq!(settings.daily_note_path, "");
+    }
+
+    #[test]
+    fn migrates_legacy_daily_note_path_without_folder() {
+        let content = config_json_with_legacy_daily_path("YYYY-MM-DD.md");
+        let (settings, needs_save) = Settings::load_from_content(&content).unwrap();
+
+        assert!(needs_save);
+        assert_eq!(settings.daily_note_folder, default_daily_note_folder());
+        assert_eq!(settings.daily_note_format, "YYYY-MM-DD");
+        assert_eq!(settings.daily_note_path, "");
+    }
+
+    #[test]
+    fn keeps_new_daily_note_fields_when_legacy_path_is_also_present() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        let object = value.as_object_mut().unwrap();
+
+        object.insert(
+            "daily_note_path".to_string(),
+            serde_json::json!("Legacy/YYYY-MM-DD.md"),
+        );
+        object.insert(
+            "daily_note_folder".to_string(),
+            serde_json::json!("Journal/"),
+        );
+        object.insert(
+            "daily_note_format".to_string(),
+            serde_json::json!("YYYY_MM_DD"),
+        );
+
+        let content = serde_json::to_string(&value).unwrap();
+        let (settings, needs_save) = Settings::load_from_content(&content).unwrap();
+
+        assert!(needs_save);
+        assert_eq!(settings.daily_note_folder, "Journal/");
+        assert_eq!(settings.daily_note_format, "YYYY_MM_DD");
+        assert_eq!(settings.daily_note_path, "");
+    }
 
     #[test]
     fn rejects_invalid_daily_note_insert_position() {

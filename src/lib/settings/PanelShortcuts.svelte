@@ -3,6 +3,7 @@
 
     export let settings;
     export let showStatus;
+    export let onChange = () => {};
 
     $: void showStatus;
 
@@ -58,6 +59,8 @@
 
         const shortcut = [...modifiers, key].join("+");
         settings[field] = shortcut;
+        settings = { ...settings };
+        onChange();
     }
 </script>
 

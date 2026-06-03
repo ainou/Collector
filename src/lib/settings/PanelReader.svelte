@@ -97,6 +97,7 @@
                     : note,
         );
         settings = { ...settings };
+        onChange();
     }
 </script>
 

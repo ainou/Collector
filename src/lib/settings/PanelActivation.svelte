@@ -55,6 +55,7 @@
         if (current.includes(app)) return;
         settings.edge_excluded_apps = [...current, app];
         settings = { ...settings };
+        onChange();
     }
 
     function removeExcludedApp(app) {
@@ -62,6 +63,7 @@
             settings.edge_excluded_apps ?? []
         ).filter((entry) => entry !== app);
         settings = { ...settings };
+        onChange();
     }
 
     function toggleModifier(field, mod, event) {
@@ -80,6 +82,11 @@
         settings = { ...settings };
         onChange();
     }
+
+    $: showConflictHint =
+        settings.edge_detection_enabled &&
+        settings.reader_edge_enabled &&
+        settings.edge_side === settings.reader_edge_side;
 
     $: filteredRunningApps = filterApps(runningApps, appPickerQuery);
 </script>
@@ -229,12 +236,30 @@
         </div>
     </Section>
 
+    {#if showConflictHint}
+        <small class="edge-conflict-hint">
+            When Capture and Reader use the same edge, Reader takes priority.
+        </small>
+    {/if}
+
     <Section title="Excluded Apps">
         <small class="global-note">
             Applies to both Capture and Reader edge activation
         </small>
 
         <style>
+            :global(.section-body > small.edge-conflict-hint) {
+                display: block;
+                font-size: 11px;
+                font-weight: 500;
+                color: var(--settings-accent, #8b5cf6);
+                margin-top: 0;
+                margin-bottom: 4px;
+                padding: 6px 14px;
+                background: rgba(139, 92, 246, 0.08);
+                border-radius: 6px;
+            }
+
             :global(.section-body > small.global-note) {
                 display: block;
                 font-size: 11px;

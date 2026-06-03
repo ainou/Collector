@@ -121,7 +121,6 @@
                 pinned_notes: normalizePinnedNotes(loaded.pinned_notes),
             };
             settings = normalized;
-            lastSavedJson = JSON.stringify(normalized);
         } catch (e) {
             console.error("Failed to load settings:", e);
             showStatus("Failed to load settings", "error");
@@ -225,7 +224,7 @@
                 {:else if activePanel === "look"}
                     <PanelLook bind:settings {showStatus} />
                 {:else if activePanel === "shortcuts"}
-                    <PanelShortcuts bind:settings {showStatus} />
+                    <PanelShortcuts bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "activation"}
                     <PanelActivation bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "images"}
