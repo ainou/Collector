@@ -878,11 +878,11 @@
   class:demo-fake-bg={DEMO_FAKE_BG}
   class:palette-open={showPalette}
   style="
-    --app-background: {appSettings.background_color};
+    --app-background: {appSettings.overlay_color};
     --app-font-family: {appSettings.font_family};
     --app-font-size: {appSettings.font_size}px;
     --app-border-radius: {appSettings.border_radius}px;
-    --app-transparency: {appSettings.window_transparency}%;
+    --app-transparency: {appSettings.overlay_strength}%;
     --app-blur: {appSettings.window_blur}px;
     --app-saturation: {appSettings.window_saturation}%;
     --app-text-color: {appSettings.text_color};

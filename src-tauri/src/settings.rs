@@ -76,7 +76,8 @@ pub struct Settings {
     #[serde(default = "default_reader_height")]
     pub reader_height: u32,
     pub border_radius: u32,
-    pub background_color: String,
+    #[serde(alias = "background_color")]
+    pub overlay_color: String,
     pub font_family: String,
     pub font_size: u32,
     #[serde(default = "default_daily_note_folder")]
@@ -168,8 +169,9 @@ pub struct Settings {
     pub note_filename_template: String,
     #[serde(default = "default_note_template")]
     pub note_template: String,
-    #[serde(default = "default_window_transparency")]
-    pub window_transparency: u32,
+    #[serde(default = "default_overlay_strength")]
+    #[serde(alias = "window_transparency")]
+    pub overlay_strength: u32,
     #[serde(default = "default_window_blur")]
     pub window_blur: u32,
     #[serde(default = "default_window_saturation")]
@@ -277,7 +279,7 @@ fn default_autocomplete_results() -> u32 {
     20
 }
 
-fn default_window_transparency() -> u32 {
+fn default_overlay_strength() -> u32 {
     10
 }
 
@@ -463,7 +465,7 @@ impl Default for Settings {
             reader_width: default_reader_width(),
             reader_height: default_reader_height(),
             border_radius: 12,
-            background_color: "#ffffff".to_string(),
+            overlay_color: "#ffffff".to_string(),
             font_family: "-apple-system, BlinkMacSystemFont, SF Pro Display".to_string(),
             font_size: 14,
             daily_note_folder: default_daily_note_folder(),
@@ -513,7 +515,7 @@ impl Default for Settings {
             reader_hide_callouts: default_true(),
             note_filename_template: default_note_filename_template(),
             note_template: default_note_template(),
-            window_transparency: default_window_transparency(),
+            overlay_strength: default_overlay_strength(),
             window_blur: default_window_blur(),
             window_saturation: default_window_saturation(),
             window_brightness: default_window_brightness(),
@@ -619,6 +621,21 @@ impl Settings {
         if settings.normalize_screenshot_path() {
             log::info!("Migrated screenshot path to vault-relative form");
             needs_save = true;
+        }
+
+        // Migration: if old field names exist in raw config, trigger a save so serde
+        // writes only the new names (overlay_color, overlay_strength). serde aliases
+        // handle deserialization, so the values are already loaded correctly.
+        if raw_settings.is_some() {
+            let raw = raw_settings.as_ref().unwrap();
+            if raw.get("background_color").is_some() && raw.get("overlay_color").is_none() {
+                log::info!("Marking config for re-save: background_color → overlay_color");
+                needs_save = true;
+            }
+            if raw.get("window_transparency").is_some() && raw.get("overlay_strength").is_none() {
+                log::info!("Marking config for re-save: window_transparency → overlay_strength");
+                needs_save = true;
+            }
         }
 
         Ok((settings, needs_save))
@@ -892,8 +909,8 @@ impl Settings {
             }
         }
 
-        if self.window_transparency > 100 {
-            return Err("window_transparency must be between 0 and 100".to_string());
+        if self.overlay_strength > 100 {
+            return Err("overlay_strength must be between 0 and 100".to_string());
         }
 
         if self.window_blur > 200 {
@@ -1227,5 +1244,50 @@ mod tests {
         assert!(settings.show_capture_action_bar);
         // validation must pass with defaults
         assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn migrates_old_field_names_overlay_color_and_overlay_strength() {
+        // Simulate an old config with background_color and window_transparency
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        let object = value.as_object_mut().unwrap();
+
+        object.insert(
+            "background_color".to_string(),
+            serde_json::json!("#123456"),
+        );
+        object.insert(
+            "window_transparency".to_string(),
+            serde_json::json!(42),
+        );
+        object.remove("overlay_color");
+        object.remove("overlay_strength");
+
+        let content = serde_json::to_string(&value).unwrap();
+        let (settings, needs_save) = Settings::load_from_content(&content).unwrap();
+
+        // Values from old fields are loaded via serde aliases
+        assert_eq!(settings.overlay_color, "#123456");
+        assert_eq!(settings.overlay_strength, 42);
+        assert!(needs_save, "old field names should trigger re-save");
+
+        // After serialization, only new names should appear
+        let serialized = serde_json::to_string(&settings).unwrap();
+        assert!(
+            serialized.contains("\"overlay_color\""),
+            "serialized config must use overlay_color"
+        );
+        assert!(
+            serialized.contains("\"overlay_strength\""),
+            "serialized config must use overlay_strength"
+        );
+        assert!(
+            !serialized.contains("\"background_color\""),
+            "serialized config must NOT contain old background_color"
+        );
+        assert!(
+            !serialized.contains("\"window_transparency\""),
+            "serialized config must NOT contain old window_transparency"
+        );
     }
 }

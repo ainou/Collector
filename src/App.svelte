@@ -253,16 +253,16 @@
 
             appSettings = {
                 ...appSettings,
-                background_color:
-                    newSettings.background_color ??
-                    appSettings.background_color,
+                overlay_color:
+                    newSettings.overlay_color ??
+                    appSettings.overlay_color,
                 font_family: newSettings.font_family ?? appSettings.font_family,
                 font_size: newSettings.font_size ?? appSettings.font_size,
                 border_radius:
                     newSettings.border_radius ?? appSettings.border_radius,
-                window_transparency:
-                    newSettings.window_transparency ??
-                    appSettings.window_transparency,
+                overlay_strength:
+                    newSettings.overlay_strength ??
+                    appSettings.overlay_strength,
                 window_blur: newSettings.window_blur ?? appSettings.window_blur,
                 window_saturation:
                     newSettings.window_saturation ??
@@ -313,13 +313,13 @@
         try {
             const settings = await invoke("load_settings");
             appSettings = {
-                background_color: settings.background_color,
+                overlay_color: settings.overlay_color,
                 font_family: settings.font_family,
                 font_size: settings.font_size,
                 border_radius: settings.border_radius,
-                window_transparency:
-                    settings.window_transparency ??
-                    defaultSettings.window_transparency,
+                overlay_strength:
+                    settings.overlay_strength ??
+                    defaultSettings.overlay_strength,
                 window_blur:
                     settings.window_blur ?? defaultSettings.window_blur,
                 window_saturation:
@@ -1106,11 +1106,11 @@
     class:dragging={isDragging}
     class:append-picker-open={showAppendPicker}
     style="
-    --app-background: {appSettings.background_color};
+    --app-background: {appSettings.overlay_color};
     --app-font-family: {appSettings.font_family};
     --app-font-size: {appSettings.font_size}px;
     --app-border-radius: {appSettings.border_radius}px;
-    --app-transparency: {appSettings.window_transparency}%;
+    --app-transparency: {appSettings.overlay_strength}%;
     --app-blur: {appSettings.window_blur}px;
     --app-saturation: {appSettings.window_saturation}%;
     --app-text-color: {appSettings.text_color};

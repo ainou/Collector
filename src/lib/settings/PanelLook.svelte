@@ -11,7 +11,7 @@
 </script>
 
 <div class="settings-panel">
-    <Section title="Window Surface">
+    <Section title="Glass Effect">
         <div class="field">
             <label for="border_radius">Corner Radius: {settings.border_radius}px</label>
             <input
@@ -23,35 +23,7 @@
             />
         </div>
         <div class="field">
-            <label for="background_color">Background Color</label>
-            <div class="color-input">
-                <input
-                    type="color"
-                    id="background_color"
-                    bind:value={settings.background_color}
-                />
-                <input
-                    type="text"
-                    bind:value={settings.background_color}
-                    pattern="^#[0-9A-Fa-f]{6}$"
-                />
-            </div>
-        </div>
-        <div class="field">
-            <label for="window_transparency"
-                >Transparency: {settings.window_transparency ?? 55}%</label
-            >
-            <input
-                type="range"
-                id="window_transparency"
-                bind:value={settings.window_transparency}
-                min="0"
-                max="100"
-            />
-            <small>Transparency of window background</small>
-        </div>
-        <div class="field">
-            <label for="window_blur">Blur: {settings.window_blur ?? 80}px</label>
+            <label for="window_blur">Background Blur: {settings.window_blur ?? 80}px</label>
             <input
                 type="range"
                 id="window_blur"
@@ -59,11 +31,11 @@
                 min="0"
                 max="200"
             />
-            <small>Background blur effect</small>
+            <small>Blurs what is behind the window.</small>
         </div>
         <div class="field">
             <label for="window_saturation"
-                >Saturation: {settings.window_saturation ?? 200}%</label
+                >Background Saturation: {settings.window_saturation ?? 200}%</label
             >
             <input
                 type="range"
@@ -72,11 +44,11 @@
                 min="0"
                 max="300"
             />
-            <small>Background color intensity</small>
+            <small>Adjusts the color intensity behind the window.</small>
         </div>
         <div class="field">
             <label for="window_brightness"
-                >Brightness: {settings.window_brightness ?? 0}</label
+                >Background Brightness: {settings.window_brightness ?? 0}</label
             >
             <input
                 type="range"
@@ -85,7 +57,38 @@
                 min="-100"
                 max="100"
             />
-            <small>Brightens dark areas or darkens light areas</small>
+            <small>Darkens or brightens what is behind the window.</small>
+        </div>
+    </Section>
+
+    <Section title="Color Overlay">
+        <div class="field">
+            <label for="overlay_color">Overlay Color</label>
+            <div class="color-input">
+                <input
+                    type="color"
+                    id="overlay_color"
+                    bind:value={settings.overlay_color}
+                />
+                <input
+                    type="text"
+                    bind:value={settings.overlay_color}
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                />
+            </div>
+        </div>
+        <div class="field">
+            <label for="overlay_strength"
+                >Overlay Strength: {settings.overlay_strength ?? 10}%</label
+            >
+            <input
+                type="range"
+                id="overlay_strength"
+                bind:value={settings.overlay_strength}
+                min="0"
+                max="100"
+            />
+            <small>0% = no color overlay, 100% = solid overlay color.</small>
         </div>
     </Section>
 

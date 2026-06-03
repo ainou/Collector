@@ -683,7 +683,7 @@ async fn get_window_info(state: tauri::State<'_, AppState>) -> Result<serde_json
         "readerWidth": settings.reader_width,
         "readerHeight": settings.reader_height,
         "borderRadius": settings.border_radius,
-        "backgroundColor": settings.background_color,
+        "backgroundColor": settings.overlay_color,
         "fontFamily": settings.font_family,
         "fontSize": settings.font_size,
         "edgeSide": settings.edge_side,
