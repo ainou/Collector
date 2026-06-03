@@ -39,6 +39,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   before resetting (vault connection is preserved).
 
 ### Changed
+- Action buttons border radius scaled to half of window corner radius;
+  max corner radius increased from 12 to 20.
 - Daily note captures now use section-insert logic instead of raw
   file append. Existing behaviour is preserved when no target heading
   is configured.

@@ -56,7 +56,7 @@
   .action-btn {
     padding: 5px 10px;
     border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: var(--app-border-radius);
+    border-radius: calc(var(--app-border-radius) / 2);
     background: transparent;
     color: rgba(255, 255, 255, 0.72);
     font-size: 11px;

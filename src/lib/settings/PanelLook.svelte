@@ -19,7 +19,7 @@
                 id="border_radius"
                 bind:value={settings.border_radius}
                 min="0"
-                max="12"
+                max="20"
             />
         </div>
         <div class="field">
