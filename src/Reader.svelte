@@ -587,6 +587,14 @@
     }
   }
 
+  async function openSettings() {
+    try {
+      await invoke("open_settings");
+    } catch (e) {
+      console.error("Failed to open settings:", e);
+    }
+  }
+
   async function handleOpenInObsidian() {
     const tab = tabs[activeTabIndex];
     if (!tab?.path) return;
@@ -936,6 +944,7 @@
     on:openSearchRequest={openSearch}
     on:closeSearchRequest={closeSearch}
     on:openPaletteRequest={openPalette}
+    on:openSettingsRequest={openSettings}
     on:closeRequest={hideReader}
     on:navigateWikilink={(event) =>
       handleNavigateToWikilink(event.detail.target, event.detail.newTab)}

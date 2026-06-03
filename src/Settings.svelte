@@ -160,7 +160,14 @@
 
     function handleReset() {
         if (confirm("Reset all settings to default?")) {
-            settings = { ...defaultSettings };
+            const vaultPath = settings.vault_path || defaultSettings.vault_path;
+            const vaultName = settings.vault_name || defaultSettings.vault_name;
+            settings = {
+                ...defaultSettings,
+                vault_path: vaultPath,
+                vault_name: vaultName,
+            };
+            scheduleAutoSave();
         }
     }
 </script>

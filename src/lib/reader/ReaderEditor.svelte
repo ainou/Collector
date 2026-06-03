@@ -410,6 +410,13 @@
             return;
         }
 
+        if ((event.metaKey || event.ctrlKey) && key === ",") {
+            event.preventDefault();
+            event.stopPropagation();
+            dispatch("openSettingsRequest");
+            return;
+        }
+
         if (event.key === "Escape") {
             event.preventDefault();
             event.stopPropagation();
