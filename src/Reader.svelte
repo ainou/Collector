@@ -751,6 +751,18 @@
     saveScrollPosition();
     editorComponent?.finalizeBlock?.();
     await flushPendingSave(false);
+    try {
+      const currentDailyPath = await getDailyNotePath(appSettings);
+      const dailyTab = tabs.find((tab) => tab.kind === "daily");
+      if (dailyTab && currentDailyPath !== dailyTab.path) {
+        await applyTabSettings(appSettings, {
+          preserveOpened: true,
+          forceReloadActive: false,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to check daily note rollover:", error);
+    }
     if (tabs[activeTabIndex]) {
       await syncTabWithDisk(activeTabIndex);
     }
