@@ -10,7 +10,7 @@ const READER_FILTER_KEYS = [
 ];
 
 export function computeBrightnessFilter(brightness = 0) {
-  if (brightness === 0) return "";
+  if (brightness === 0) return " brightness(1)";
 
   if (brightness > 0) {
     const brightnessValue = 1 + (brightness / 100) * 0.6;

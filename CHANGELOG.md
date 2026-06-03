@@ -8,7 +8,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.2.3] - 2026-06-03
 
 ### Added
-
 - Captures can now be inserted under a specific heading in the daily
   note (configurable target heading, top or bottom of the section).
   The heading can be auto-created if missing; falls back to appending
@@ -33,6 +32,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   Note/Capture Window panels were split and reorganised.
 - `Cmd + ,` now opens Settings from the Reader window too (was
   capture-window only).
+- Reset All in Settings now shows a native confirmation dialog
+  before resetting (vault connection is preserved).
 
 ### Changed
 - Daily note captures now use section-insert logic instead of raw
@@ -46,6 +47,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   feedback. Error messages remain and keep the window open.
 
 ### Fixed
+- Blur and saturation had no effect when Brightness was set to 0.
+  Empty brightness filter string made the entire `backdrop-filter`
+  CSS declaration invalid. Now always emits `brightness(1)` as a
+  valid no-op identity filter.
 - `append_to_note` failed with "Bad file descriptor (os error 9)"
   when the note already existed. File was opened write-only; added
   `.read(true)` to OpenOptions so the trailing-newline check works.

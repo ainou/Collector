@@ -75,7 +75,7 @@
 
     $: brightnessFilter = (() => {
         const b = appSettings.window_brightness;
-        if (b === 0) return "";
+        if (b === 0) return " brightness(1)";
 
         if (b > 0) {
             const brightnessValue = 1 + (b / 100) * 0.6;
