@@ -33,6 +33,8 @@ export const defaultSettings = {
   global_shortcut: 'Cmd+Shift+N',
   global_shortcut_closes_window: false,
   global_close_shortcut: '',
+  capture_text_shortcut: 'Cmd+Shift+C',
+  autostart_enabled: false,
 
   compression_max_kb: 200,
   edge_detection_enabled: true,
