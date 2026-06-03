@@ -89,21 +89,23 @@
             {/if}
         </div>
 
-        <div class="field">
-            <label for="daily_note_create_timeout_ms">Wait timeout (ms)</label>
-            <input
-                type="number"
-                id="daily_note_create_timeout_ms"
-                min="1000"
-                max="60000"
-                step="100"
-                bind:value={settings.daily_note_create_timeout_ms}
-            />
-            <small
-                >How long Collector waits for Obsidian to create the daily note
-                before giving up (1000–60000 ms).</small
-            >
-        </div>
+        {#if settings.daily_note_create_if_missing}
+            <div class="field">
+                <label for="daily_note_create_timeout_ms">Wait timeout (ms)</label>
+                <input
+                    type="number"
+                    id="daily_note_create_timeout_ms"
+                    min="1000"
+                    max="60000"
+                    step="100"
+                    bind:value={settings.daily_note_create_timeout_ms}
+                />
+                <small
+                    >How long Collector waits for Obsidian to create the daily
+                    note before giving up (1000–60000 ms).</small
+                >
+            </div>
+        {/if}
 
         <div class="field">
             <label for="daily_note_target_heading">Target Heading</label>
