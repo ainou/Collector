@@ -13,7 +13,7 @@
     export let value = undefined;
 </script>
 
-<label class="checkbox-wrapper" class:disabled>
+<label class="checkbox-wrapper" class:disabled on:change>
     <input
         type="checkbox"
         {id}

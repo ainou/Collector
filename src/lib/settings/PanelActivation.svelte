@@ -67,12 +67,12 @@
         onChange();
     }
 
-    function toggleModifier(field, mod, event) {
+    function toggleModifier(field, mod) {
         const keys = settings[field] ?? [];
-        if (event.currentTarget.checked) {
-            settings[field] = [...keys, mod];
-        } else {
+        if (keys.includes(mod)) {
             settings[field] = keys.filter((key) => key !== mod);
+        } else {
+            settings[field] = [...keys, mod];
         }
         settings = { ...settings };
         onChange();
@@ -116,8 +116,8 @@
                     <div class="modifier-checkbox">
                         <Checkbox
                             checked={settings.edge_modifier_keys?.includes(mod)}
-                            on:change={(e) =>
-                                toggleModifier("edge_modifier_keys", mod, e)}
+                            on:change={() =>
+                                toggleModifier("edge_modifier_keys", mod)}
                         >
                             {modifierLabel(mod)}
                         </Checkbox>
@@ -179,11 +179,10 @@
                             checked={settings.reader_edge_modifier_keys?.includes(
                                 mod,
                             )}
-                            on:change={(e) =>
+                            on:change={() =>
                                 toggleModifier(
                                     "reader_edge_modifier_keys",
                                     mod,
-                                    e,
                                 )}
                         >
                             {modifierLabel(mod)}

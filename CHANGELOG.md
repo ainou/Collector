@@ -32,6 +32,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   Note/Capture Window panels were split and reorganised.
 - `Cmd + ,` now opens Settings from the Reader window too (was
   capture-window only).
+- Custom styled checkboxes across all Settings panels — bigger,
+  border-radius matching inputs, accent colour, light/dark mode
+  support. Orange native checkbox gone.
 - Reset All in Settings now shows a native confirmation dialog
   before resetting (vault connection is preserved).
 
