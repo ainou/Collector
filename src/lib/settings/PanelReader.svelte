@@ -1,17 +1,22 @@
 <script>
+    import { tick } from "svelte";
     import Section from "./Section.svelte";
     import Checkbox from "./Checkbox.svelte";
-    import { open } from "@tauri-apps/plugin-dialog";
     import {
         getReaderIconComponent,
         readerIconOptions,
     } from "../reader-icons.js";
     import { normalizePinnedNotes } from "./pinned-notes.js";
-    import { normalizeComparablePath } from "./path-utils.js";
 
     export let settings;
     export let showStatus;
     export let onChange = () => {};
+    export let vaultNotes = [];
+
+    let notePickerOpen = false;
+    let pickerQuery = "";
+    let pickerIndex = 0;
+    let pickerInputRef;
 
     function getFilename(path) {
         return (
@@ -20,62 +25,62 @@
         );
     }
 
-    function toRelativeVaultPath(path = "") {
-        const normalizedPath = normalizeComparablePath(path.trim());
-        const normalizedVaultPath = normalizeComparablePath(
-            settings.vault_path ?? "",
-        );
+    $: filteredPickerNotes = vaultNotes
+        .filter((note) => {
+            const q = pickerQuery.trim().toLowerCase();
+            if (!q) return true;
+            return (
+                note.name.toLowerCase().includes(q) ||
+                note.relative_path.toLowerCase().includes(q)
+            );
+        })
+        .slice(0, 20);
 
-        if (!normalizedPath || !normalizedVaultPath) {
-            return "";
-        }
-
-        if (normalizedPath === normalizedVaultPath) {
-            return "";
-        }
-
-        if (normalizedPath.startsWith(`${normalizedVaultPath}/`)) {
-            return normalizedPath.slice(normalizedVaultPath.length + 1);
-        }
-
-        return "";
+    function openNotePicker() {
+        pickerQuery = "";
+        pickerIndex = 0;
+        notePickerOpen = true;
     }
 
-    async function addPinnedNotes() {
-        const selected = await open({
-            multiple: true,
-            filters: [{ name: "Markdown", extensions: ["md"] }],
-            defaultPath: settings.vault_path || undefined,
-        });
+    $: if (notePickerOpen) {
+        void tick().then(() => pickerInputRef?.focus());
+    }
 
-        if (selected) {
-            const paths = Array.isArray(selected) ? selected : [selected];
-            const existing = normalizePinnedNotes(settings.pinned_notes);
-            const existingByPath = new Set(existing.map((note) => note.path));
-            let skippedOutsideVault = false;
-            const additions = paths
-                .map((path) => toRelativeVaultPath(path))
-                .filter((path) => {
-                    if (!path) {
-                        skippedOutsideVault = true;
-                        return false;
-                    }
+    function closeNotePicker() {
+        notePickerOpen = false;
+        pickerInputRef?.blur();
+    }
 
-                    return !existingByPath.has(path);
-                })
-                .map((path) => ({
-                    path,
-                    label: getFilename(path),
-                    icon: "",
-                }));
+    function pickNote(note) {
+        const existing = normalizePinnedNotes(settings.pinned_notes);
+        const existingByPath = new Set(existing.map((n) => n.path));
 
-            settings.pinned_notes = [...existing, ...additions];
+        if (!existingByPath.has(note.relative_path)) {
+            settings.pinned_notes = [
+                ...existing,
+                { path: note.relative_path, label: getFilename(note.relative_path), icon: "" },
+            ];
             settings = { ...settings };
             onChange();
+        }
 
-            if (skippedOutsideVault) {
-                showStatus("Pinned notes must be inside the current vault", "error");
-            }
+        closeNotePicker();
+    }
+
+    function handlePickerKeydown(event) {
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            pickerIndex = Math.min(pickerIndex + 1, filteredPickerNotes.length - 1);
+        } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            pickerIndex = Math.max(pickerIndex - 1, 0);
+        } else if (event.key === "Enter") {
+            event.preventDefault();
+            const note = filteredPickerNotes[pickerIndex];
+            if (note) pickNote(note);
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            closeNotePicker();
         }
     }
 
@@ -197,10 +202,55 @@
             Optional icon and label only affect the reader tab display, not the
             actual Markdown file.
         </small>
-        <button class="secondary" type="button" on:click={addPinnedNotes}
+        <button class="secondary" type="button" on:click={openNotePicker}
             >+ Add Note</button
         >
     </Section>
+
+    {#if notePickerOpen}
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <div class="picker-backdrop" on:click={closeNotePicker}>
+            <div
+                class="picker-panel"
+                role="dialog"
+                aria-modal="true"
+                on:click|stopPropagation
+                on:keydown={handlePickerKeydown}
+            >
+                <input
+                    bind:this={pickerInputRef}
+                    bind:value={pickerQuery}
+                    class="picker-input"
+                    placeholder="Search vault notes..."
+                    spellcheck="false"
+                    on:input={() => {
+                        pickerIndex = 0;
+                    }}
+                    on:keydown={handlePickerKeydown}
+                />
+                <div class="picker-results">
+                    {#if filteredPickerNotes.length === 0}
+                        <div class="picker-empty">No matching notes</div>
+                    {:else}
+                        {#each filteredPickerNotes as note, idx}
+                            <button
+                                class="picker-item"
+                                class:selected={idx === pickerIndex}
+                                type="button"
+                                on:click={() => pickNote(note)}
+                                on:pointermove={() => {
+                                    pickerIndex = idx;
+                                }}
+                            >
+                                <span class="picker-name">{note.name}</span>
+                                <span class="picker-path">{note.relative_path}</span>
+                            </button>
+                        {/each}
+                    {/if}
+                </div>
+            </div>
+        </div>
+    {/if}
 
     <Section title="Content Filters">
         <div class="field">
@@ -367,5 +417,106 @@
             flex-direction: column;
             gap: 0;
         }
+    }
+
+    .picker-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: rgba(0, 0, 0, 0.22);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: 60px;
+    }
+
+    .picker-panel {
+        width: min(calc(100% - 28px), 480px);
+        max-height: 420px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 12px;
+        background: var(--settings-bg, #f2f2f2);
+        border: 1px solid var(--settings-border, rgba(0, 0, 0, 0.08));
+        box-shadow: var(--overlay-shadow);
+    }
+
+    .picker-input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 0;
+        border-bottom: 1px solid var(--settings-border, rgba(0, 0, 0, 0.08));
+        background: transparent;
+        color: var(--settings-text, inherit);
+        font: inherit;
+        font-size: 14px;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    .picker-input::placeholder {
+        color: var(--settings-text-secondary, #6b7280);
+    }
+
+    .picker-results {
+        flex: 1;
+        overflow-y: auto;
+        max-height: 360px;
+    }
+
+    .picker-item {
+        border: 0;
+        border-bottom: 1px solid var(--settings-border, rgba(0, 0, 0, 0.06));
+        background: transparent;
+        color: var(--settings-text, inherit);
+        font: inherit;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        width: 100%;
+        padding: 8px 14px;
+        cursor: pointer;
+        text-align: left;
+        transition: background 0.1s ease;
+    }
+
+    .picker-item:last-child {
+        border-bottom: 0;
+    }
+
+    .picker-item.selected,
+    .picker-item:hover {
+        background: color-mix(in srgb, var(--settings-accent, #8b5cf6) 14%, transparent);
+    }
+
+    .picker-name {
+        font-weight: 500;
+        font-size: 13px;
+    }
+
+    .picker-path {
+        font-size: 11px;
+        color: var(--settings-text-secondary, #6b7280);
+    }
+
+    .picker-empty {
+        padding: 18px 14px;
+        color: var(--settings-text-secondary, #6b7280);
+        text-align: center;
+        font-size: 13px;
+    }
+
+    .picker-results::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .picker-results::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .picker-results::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.12);
+        border-radius: 3px;
     }
 </style>

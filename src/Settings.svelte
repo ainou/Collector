@@ -14,6 +14,7 @@
     import { defaultSettings } from "./lib/stores.js";
 
     let settings = { ...defaultSettings };
+    let vaultNotes = [];
     let isLoaded = false;
     let statusMessage = "";
     let statusType = "";
@@ -132,6 +133,11 @@
 
     onMount(async () => {
         await loadSettings();
+        try {
+            vaultNotes = await invoke("list_vault_notes");
+        } catch (e) {
+            console.error("Failed to load vault notes:", e);
+        }
     });
 
     onDestroy(() => {
@@ -232,7 +238,7 @@
                 {:else if activePanel === "capture"}
                     <PanelCapture bind:settings {showStatus} />
                 {:else if activePanel === "reader"}
-                    <PanelReader bind:settings {showStatus} onChange={scheduleAutoSave} />
+                    <PanelReader bind:settings {showStatus} {vaultNotes} onChange={scheduleAutoSave} />
                 {:else if activePanel === "look"}
                     <PanelLook bind:settings {showStatus} />
                 {:else if activePanel === "shortcuts"}
