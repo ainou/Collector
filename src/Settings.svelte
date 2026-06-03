@@ -244,7 +244,7 @@
                 {:else if activePanel === "shortcuts"}
                     <PanelShortcuts bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "activation"}
-                    <PanelActivation bind:settings {showStatus} onChange={scheduleAutoSave} />
+                    <PanelActivation bind:settings onChange={scheduleAutoSave} />
                 {:else if activePanel === "images"}
                     <PanelImages bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {/if}

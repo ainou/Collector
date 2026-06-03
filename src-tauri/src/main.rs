@@ -417,6 +417,36 @@ async fn open_external_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn collect_apps(dir: &std::path::Path, seen: &mut std::collections::HashSet<String>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("app") {
+                if let Some(name) = path.file_stem() {
+                    seen.insert(name.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+}
+
+#[tauri::command]
+async fn list_applications() -> Result<Vec<String>, String> {
+    let mut seen = std::collections::HashSet::new();
+
+    collect_apps(std::path::Path::new("/Applications"), &mut seen);
+    collect_apps(std::path::Path::new("/System/Applications"), &mut seen);
+
+    if let Ok(home) = std::env::var("HOME") {
+        collect_apps(&std::path::Path::new(&home).join("Applications"), &mut seen);
+    }
+
+    let mut apps: Vec<String> = seen.into_iter().collect();
+    apps.sort();
+    Ok(apps)
+}
+
+#[tauri::command]
 async fn get_running_apps() -> Result<Vec<String>, String> {
     use std::process::Command;
 
@@ -1165,6 +1195,7 @@ fn main() {
             write_note_file,
             open_external_url,
             get_running_apps,
+            list_applications,
             load_image_data_url,
             load_images_batch,
             list_vault_notes,

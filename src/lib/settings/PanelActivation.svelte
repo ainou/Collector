@@ -1,17 +1,13 @@
 <script>
     import Section from "./Section.svelte";
     import Checkbox from "./Checkbox.svelte";
-    import { invoke } from "@tauri-apps/api/core";
+    import AppPicker from "./AppPicker.svelte";
     import { normalizeDelayValue } from "./delay-utils.js";
 
     export let settings;
-    export let showStatus;
     export let onChange = () => {};
 
     let showAppPicker = false;
-    let runningApps = [];
-    let filteredRunningApps = [];
-    let appPickerQuery = "";
 
     function modifierLabel(mod) {
         return (
@@ -24,31 +20,8 @@
         );
     }
 
-    function filterApps(apps, query) {
-        if (!query) return apps;
-        const lower = query.toLowerCase();
-        return apps.filter((app) => app.toLowerCase().includes(lower));
-    }
-
-    function refreshFilteredApps() {
-        filteredRunningApps = filterApps(runningApps, appPickerQuery);
-    }
-
-    async function toggleAppPicker() {
+    function toggleAppPicker() {
         showAppPicker = !showAppPicker;
-        if (!showAppPicker) return;
-
-        if (runningApps.length === 0) {
-            try {
-                runningApps = await invoke("get_running_apps");
-            } catch (error) {
-                console.error("Could not get running apps:", error);
-                showStatus("Failed to load running apps", "error");
-                return;
-            }
-        }
-
-        refreshFilteredApps();
     }
 
     function addExcludedApp(app) {
@@ -88,8 +61,6 @@
         settings.edge_detection_enabled &&
         settings.reader_edge_enabled &&
         settings.edge_side === settings.reader_edge_side;
-
-    $: filteredRunningApps = filterApps(runningApps, appPickerQuery);
 </script>
 
 <div class="settings-panel">
@@ -281,33 +252,14 @@
                 + Add App
             </button>
 
-            {#if showAppPicker}
-                <div class="app-picker">
-                    <input
-                        bind:value={appPickerQuery}
-                        class="app-picker-search"
-                        placeholder="Filter apps…"
-                        on:input={refreshFilteredApps}
-                    />
-                    <div class="app-picker-list">
-                        {#each filteredRunningApps as app}
-                            <button
-                                class="app-picker-item"
-                                type="button"
-                                on:click={() => addExcludedApp(app)}
-                                disabled={settings.edge_excluded_apps?.includes(
-                                    app,
-                                )}
-                            >
-                                {app}
-                                {#if settings.edge_excluded_apps?.includes(app)}
-                                    <span class="app-added">✓</span>
-                                {/if}
-                            </button>
-                        {/each}
-                    </div>
-                </div>
-            {/if}
+            <AppPicker
+                show={showAppPicker}
+                excludedApps={settings.edge_excluded_apps ?? []}
+                on:add={(event) => addExcludedApp(event.detail)}
+                on:close={() => {
+                    showAppPicker = false;
+                }}
+            />
         </div>
     </Section>
 </div>
@@ -353,7 +305,6 @@
     }
 
     .modifier-checkbox:has(.checkbox-wrapper input:checked) {
-        border-color: var(--settings-accent, #8b5cf6);
         background: color-mix(
             in srgb,
             var(--settings-accent, #8b5cf6) 6%,
@@ -404,56 +355,7 @@
         margin-top: 8px;
         font-size: 12px;
         padding: 6px 12px;
-    }
-
-    .app-picker {
-        margin-top: 8px;
-        border: 1.5px solid var(--settings-input-border, rgba(0, 0, 0, 0.1));
-        border-radius: 8px;
-        overflow: hidden;
-        background: var(--settings-input-bg, #fff);
-    }
-
-    .app-picker-search {
-        width: 100%;
-        border: none;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-        padding: 8px 12px;
-        font-size: 13px;
-        outline: none;
-    }
-
-    .app-picker-list {
-        max-height: 200px;
-        overflow-y: auto;
-    }
-
-    .app-picker-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-        padding: 8px 12px;
-        border: none;
-        background: transparent;
-        text-align: left;
-        font-size: 13px;
-        cursor: pointer;
-        transition: background 0.1s;
-    }
-
-    .app-picker-item:hover {
-        background: rgba(139, 92, 246, 0.06);
-    }
-
-    .app-picker-item:disabled {
-        opacity: 0.5;
-        cursor: default;
-    }
-
-    .app-added {
-        color: #22c55e;
-        font-size: 12px;
+        color: var(--settings-btn-text, inherit);
     }
 
     @media (max-width: 860px) {
