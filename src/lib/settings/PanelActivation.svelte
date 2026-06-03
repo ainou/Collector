@@ -64,6 +64,17 @@
         settings = { ...settings };
     }
 
+    function toggleModifier(field, mod, event) {
+        const keys = settings[field] ?? [];
+        if (event.currentTarget.checked) {
+            settings[field] = [...keys, mod];
+        } else {
+            settings[field] = keys.filter((key) => key !== mod);
+        }
+        settings = { ...settings };
+        onChange();
+    }
+
     function normalizeDelayField(field, fallback = 1000) {
         settings[field] = normalizeDelayValue(settings[field], fallback);
         settings = { ...settings };
@@ -74,140 +85,155 @@
 </script>
 
 <div class="settings-panel">
-    <Section title="Edge Detection">
+    <Section title="Capture Window">
         <div class="field">
             <label class="checkbox">
                 <input
                     type="checkbox"
                     bind:checked={settings.edge_detection_enabled}
                 />
-                Edge Detection enabled
+                Open from screen edge
             </label>
-            <small>Panels open when moving mouse to screen edges</small>
+            <small>Open capture window when cursor touches screen edge</small>
         </div>
+
         <div class="field">
-            <label for="edge_side">Note Window Edge</label>
-            <select
-                id="edge_side"
-                bind:value={settings.edge_side}
-            >
+            <label for="edge_side">Screen edge</label>
+            <select id="edge_side" bind:value={settings.edge_side}>
                 <option value="right">Right side</option>
                 <option value="left">Left side</option>
             </select>
-            <small>Which screen edge shows the note capture window</small>
         </div>
-    </Section>
 
-    <Section title="Open Delays">
-        <div class="delay-grid">
-            <div class="delay-card">
-                <div class="delay-card-title">Capture Window</div>
-                <div class="delay-toggle-row">
-                    <label class="checkbox compact-checkbox">
-                        <input
-                            type="checkbox"
-                            bind:checked={settings.note_edge_open_delay_enabled}
-                        />
-                        Open Delay
-                    </label>
-
-                    {#if settings.note_edge_open_delay_enabled}
-                        <label class="delay-input">
-                            <input
-                                type="number"
-                                bind:value={settings.note_edge_open_delay_ms}
-                                min="50"
-                                max="10000"
-                                step="50"
-                                on:blur={() =>
-                                    normalizeDelayField(
-                                        "note_edge_open_delay_ms",
-                                    )}
-                            />
-                            <span>ms</span>
-                        </label>
-                    {/if}
-                </div>
-                <small>
-                    Wait this long before the note window opens when touching
-                    the edge.
-                </small>
-            </div>
-
-            <div class="delay-card">
-                <div class="delay-card-title">Reader Window</div>
-                <div class="field" style="margin-bottom: 8px;">
-                    <label class="checkbox compact-checkbox">
-                        <input
-                            type="checkbox"
-                            bind:checked={settings.reader_edge_enabled}
-                        />
-                        Edge Detection enabled
-                    </label>
-                </div>
-                <div class="delay-toggle-row">
-                    <label class="checkbox compact-checkbox">
-                        <input
-                            type="checkbox"
-                            bind:checked={settings.reader_edge_open_delay_enabled}
-                        />
-                        Open Delay
-                    </label>
-
-                    {#if settings.reader_edge_open_delay_enabled}
-                        <label class="delay-input">
-                            <input
-                                type="number"
-                                bind:value={settings.reader_edge_open_delay_ms}
-                                min="50"
-                                max="10000"
-                                step="50"
-                                on:blur={() =>
-                                    normalizeDelayField(
-                                        "reader_edge_open_delay_ms",
-                                    )}
-                            />
-                            <span>ms</span>
-                        </label>
-                    {/if}
-                </div>
-                <small>
-                    Wait this long before the reader opens when touching the
-                    edge.
-                </small>
-            </div>
-        </div>
-    </Section>
-
-    <Section title="Modifier Keys">
         <div class="field">
+            <div class="field-label">Modifier keys</div>
             <div class="modifier-grid">
                 {#each ["cmd", "option", "shift", "ctrl"] as mod}
                     <label class="checkbox modifier-checkbox">
                         <input
                             type="checkbox"
                             checked={settings.edge_modifier_keys?.includes(mod)}
-                            on:change={(event) => {
-                                const keys = settings.edge_modifier_keys ?? [];
-                                if (event.currentTarget.checked) {
-                                    settings.edge_modifier_keys = [...keys, mod];
-                                } else {
-                                    settings.edge_modifier_keys = keys.filter(
-                                        (key) => key !== mod,
-                                    );
-                                }
-                                settings = { ...settings };
-                                onChange();
-                            }}
+                            on:change={(e) =>
+                                toggleModifier("edge_modifier_keys", mod, e)}
                         />
                         {modifierLabel(mod)}
                     </label>
                 {/each}
             </div>
+            <small>Hold modifier keys while touching edge</small>
+        </div>
+
+        <div class="field">
+            <div class="delay-toggle-row">
+                <label class="checkbox">
+                    <input
+                        type="checkbox"
+                        bind:checked={settings.note_edge_open_delay_enabled}
+                    />
+                    Open delay
+                </label>
+
+                {#if settings.note_edge_open_delay_enabled}
+                    <label class="delay-input">
+                        <input
+                            type="number"
+                            bind:value={settings.note_edge_open_delay_ms}
+                            min="50"
+                            max="10000"
+                            step="50"
+                            on:blur={() =>
+                                normalizeDelayField(
+                                    "note_edge_open_delay_ms",
+                                )}
+                        />
+                        <span>ms</span>
+                    </label>
+                {/if}
+            </div>
+            <small>Delay before window opens when touching edge</small>
+        </div>
+    </Section>
+
+    <Section title="Reader Window">
+        <div class="field">
+            <label class="checkbox">
+                <input
+                    type="checkbox"
+                    bind:checked={settings.reader_edge_enabled}
+                />
+                Open from screen edge
+            </label>
+            <small>Open reader window when cursor touches screen edge</small>
+        </div>
+
+        <div class="field">
+            <label for="reader_edge_side">Screen edge</label>
+            <select id="reader_edge_side" bind:value={settings.reader_edge_side}>
+                <option value="left">Left side</option>
+                <option value="right">Right side</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <div class="field-label">Modifier keys</div>
+            <div class="modifier-grid">
+                {#each ["cmd", "option", "shift", "ctrl"] as mod}
+                    <label class="checkbox modifier-checkbox">
+                        <input
+                            type="checkbox"
+                            checked={settings.reader_edge_modifier_keys?.includes(
+                                mod,
+                            )}
+                            on:change={(e) =>
+                                toggleModifier(
+                                    "reader_edge_modifier_keys",
+                                    mod,
+                                    e,
+                                )}
+                        />
+                        {modifierLabel(mod)}
+                    </label>
+                {/each}
+            </div>
+            <small>Hold modifier keys while touching edge</small>
+        </div>
+
+        <div class="field">
+            <div class="delay-toggle-row">
+                <label class="checkbox">
+                    <input
+                        type="checkbox"
+                        bind:checked={settings.reader_edge_open_delay_enabled}
+                    />
+                    Open delay
+                </label>
+
+                {#if settings.reader_edge_open_delay_enabled}
+                    <label class="delay-input">
+                        <input
+                            type="number"
+                            bind:value={settings.reader_edge_open_delay_ms}
+                            min="50"
+                            max="10000"
+                            step="50"
+                            on:blur={() =>
+                                normalizeDelayField(
+                                    "reader_edge_open_delay_ms",
+                                )}
+                        />
+                        <span>ms</span>
+                    </label>
+                {/if}
+            </div>
+            <small>Delay before window opens when touching edge</small>
         </div>
     </Section>
 
     <Section title="Excluded Apps">
+        <small class="global-note">
+            Applies to both Capture and Reader edge activation
+        </small>
+
         <div class="field">
             {#if (settings.edge_excluded_apps ?? []).length > 0}
                 <ul class="exclusion-list">
