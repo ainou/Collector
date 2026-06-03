@@ -27,6 +27,11 @@
         getVaultNotePath,
         matchesShortcut,
     } from "./lib/capture/capture-utils.js";
+    import {
+        appendToDailyNoteAction,
+        saveAsNoteAction,
+        closeCaptureAction,
+    } from "./lib/capture/capture-actions.js";
 
     let textareaRef;
     let content = "";
@@ -244,17 +249,9 @@
         if (isTauri) {
             try {
                 unlistenShow = await listen("show_capture", () => {
-                    uploadedImages.forEach((img) => {
-                        if (img.preview && img.preview.startsWith("blob:")) {
-                            URL.revokeObjectURL(img.preview);
-                        }
-                    });
-                    content = "";
-                    uploadedImages = [];
+                    freeBlobUrls();
+                    resetCaptureState();
                     statusMessage = "";
-                    isDragging = false;
-                    dragCounter = 0;
-                    isLoading = false;
                     closeAppendPicker();
                     // Required: after the native Tauri show event, macOS needs a short delay
                     // before the textarea reliably accepts focus.
@@ -423,11 +420,7 @@
             document.removeEventListener("drop", globalDrop, true);
         }
 
-        uploadedImages.forEach((img) => {
-            if (img.preview && img.preview.startsWith("blob:")) {
-                URL.revokeObjectURL(img.preview);
-            }
-        });
+        freeBlobUrls();
     });
 
     function showStatus(message, type = "success") {
@@ -435,6 +428,32 @@
         statusType = type;
         // Hide the transient status toast after its display period.
         setTimeout(() => (statusMessage = ""), 2000);
+    }
+
+    function freeBlobUrls() {
+        uploadedImages.forEach((img) => {
+            if (img.preview && img.preview.startsWith("blob:")) {
+                URL.revokeObjectURL(img.preview);
+            }
+        });
+    }
+
+    function resetCaptureState() {
+        content = "";
+        uploadedImages = [];
+        isDragging = false;
+        dragCounter = 0;
+        isLoading = false;
+    }
+
+    function deferHideCapture() {
+        setTimeout(async () => {
+            try {
+                await invoke("hide_capture");
+            } catch (e) {
+                console.error("Hide error:", e);
+            }
+        }, 200);
     }
 
     function openAppendPicker() {
@@ -470,58 +489,23 @@
 
         isLoading = true;
 
-        try {
-            await invoke("append_to_daily_note", {
-                text: content.trim(),
-            });
-
-            showStatus("✓ Saved", "success");
-
-            uploadedImages.forEach((img) => {
-                if (img.preview && img.preview.startsWith("blob:")) {
-                    URL.revokeObjectURL(img.preview);
-                }
-            });
-
-            content = "";
-            uploadedImages = [];
-            isDragging = false;
-            dragCounter = 0;
-            isLoading = false;
-
-            // Required: hiding the capture window immediately after save can race the
-            // native save flow on macOS, so the close is delayed slightly.
-            setTimeout(async () => {
-                try {
-                    await invoke("hide_capture");
-                } catch (e) {
-                    console.error("Hide error:", e);
-                }
-            }, 200);
-        } catch (e) {
-            console.error("Append to daily note failed:", e);
-            showStatus("✗ " + e.toString(), "error");
-            isLoading = false;
-        }
+        await appendToDailyNoteAction({
+            content: content.trim(),
+            invoke,
+            showStatus,
+            freeBlobUrls,
+            resetCaptureState,
+            deferHideCapture,
+            setLoading: (v) => { isLoading = v; },
+        });
     }
 
     async function handleClose() {
-        uploadedImages.forEach((img) => {
-            if (img.preview && img.preview.startsWith("blob:")) {
-                URL.revokeObjectURL(img.preview);
-            }
+        await closeCaptureAction({
+            invoke,
+            freeBlobUrls,
+            resetCaptureState,
         });
-        content = "";
-        uploadedImages = [];
-        isDragging = false;
-        dragCounter = 0;
-        isLoading = false;
-
-        try {
-            await invoke("hide_capture");
-        } catch (e) {
-            console.error("Failed to hide window:", e);
-        }
     }
 
     async function handleSaveAsNote() {
@@ -529,55 +513,15 @@
 
         isLoading = true;
 
-        try {
-            const trimmed = content.trim();
-            const lines = trimmed.split("\n");
-            const firstLine = lines[0].trimEnd();
-
-            let title = null;
-            let body = trimmed;
-
-            if (firstLine.match(/^#\s+.+/)) {
-                title = firstLine.replace(/^#+\s+/, "").trim();
-                const rest = lines.slice(1);
-                while (rest.length > 0 && rest[0].trim() === "") {
-                    rest.shift();
-                }
-                body = rest.join("\n").trim();
-            }
-
-            const result = await invoke("save_as_note", {
-                content: body,
-                title: title,
-            });
-            showStatus("✓ " + result, "success");
-
-            uploadedImages.forEach((img) => {
-                if (img.preview && img.preview.startsWith("blob:")) {
-                    URL.revokeObjectURL(img.preview);
-                }
-            });
-            content = "";
-            uploadedImages = [];
-            isDragging = false;
-            dragCounter = 0;
-
-            isLoading = false;
-
-            // Required: hiding the capture window immediately after save can race the
-            // native save flow on macOS, so the close is delayed slightly.
-            setTimeout(async () => {
-                try {
-                    await invoke("hide_capture");
-                } catch (e) {
-                    console.error("Hide error:", e);
-                }
-            }, 200);
-        } catch (e) {
-            console.error("Save as note failed:", e);
-            showStatus("✗ " + e.toString(), "error");
-            isLoading = false;
-        }
+        await saveAsNoteAction({
+            content,
+            invoke,
+            showStatus,
+            freeBlobUrls,
+            resetCaptureState,
+            deferHideCapture,
+            setLoading: (v) => { isLoading = v; },
+        });
     }
 
     async function handleNoteSelected(note) {
@@ -641,25 +585,9 @@
 
             showStatus("✓ Appended", "success");
 
-            uploadedImages.forEach((img) => {
-                if (img.preview && img.preview.startsWith("blob:")) {
-                    URL.revokeObjectURL(img.preview);
-                }
-            });
-
-            content = "";
-            uploadedImages = [];
-            isDragging = false;
-            dragCounter = 0;
-            isLoading = false;
-
-            setTimeout(async () => {
-                try {
-                    await invoke("hide_capture");
-                } catch (e) {
-                    console.error("Hide error:", e);
-                }
-            }, 200);
+            freeBlobUrls();
+            resetCaptureState();
+            deferHideCapture();
         } catch (e) {
             showStatus("✗ " + e.toString(), "error");
             isLoading = false;
