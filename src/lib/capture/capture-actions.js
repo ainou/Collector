@@ -12,7 +12,6 @@ export async function appendToDailyNoteAction({
 }) {
     try {
         await invoke("append_to_daily_note", { text: content });
-        showStatus("✓ Saved", "success");
         freeBlobUrls();
         resetCaptureState();
         deferHideCapture();
@@ -53,11 +52,10 @@ export async function saveAsNoteAction({
             body = rest.join("\n").trim();
         }
 
-        const result = await invoke("save_as_note", {
+        await invoke("save_as_note", {
             content: body,
             title: title,
         });
-        showStatus("✓ " + result, "success");
         freeBlobUrls();
         resetCaptureState();
         deferHideCapture();

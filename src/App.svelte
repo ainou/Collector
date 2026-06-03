@@ -581,8 +581,6 @@
                 await insertAfterHeading(notePath, heading, content.trim());
             }
 
-            showStatus("✓ Appended", "success");
-
             freeBlobUrls();
             resetCaptureState();
             deferHideCapture();

@@ -396,6 +396,7 @@ pub fn append_to_note(
     let entry = format!("{}\n{}\n", header, captured_text);
 
     let mut file = OpenOptions::new()
+        .read(true)
         .write(true)
         .append(true)
         .open(file_path)
