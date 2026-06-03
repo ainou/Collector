@@ -2,6 +2,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use crate::fs_util::atomic_write_text;
 use crate::log_safety::redact_path_str;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -687,7 +688,7 @@ impl Settings {
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize settings: {}", e))?;
 
-        fs::write(&config_path, content)
+        atomic_write_text(&config_path, &content)
             .map_err(|e| format!("Failed to write config file: {}", e))?;
 
         if !config_path.exists() {

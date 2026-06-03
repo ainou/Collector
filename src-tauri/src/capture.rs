@@ -1,9 +1,10 @@
 use chrono::Local;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::path::Path;
+use std::time::Duration;
 
+use crate::fs_util::atomic_write_text;
 use crate::log_safety::{redact_path, summarize_text_len};
 use crate::markdown_sections::{self, InsertPosition};
 use crate::settings::Settings;
@@ -15,98 +16,15 @@ pub struct CaptureResult {
     pub message: String,
 }
 
-struct TempFileGuard {
-    path: PathBuf,
-    active: bool,
-}
-
-impl TempFileGuard {
-    fn new(path: PathBuf) -> Self {
-        Self { path, active: true }
-    }
-
-    fn disarm(&mut self) {
-        self.active = false;
-    }
-}
-
-impl Drop for TempFileGuard {
-    fn drop(&mut self) {
-        if self.active {
-            let _ = fs::remove_file(&self.path);
-        }
-    }
-}
-
-fn build_atomic_temp_path(file_path: &Path, attempt: u32) -> Result<PathBuf, String> {
-    let parent = file_path
-        .parent()
-        .ok_or_else(|| "Target file has no parent directory".to_string())?;
-    let file_name = file_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "Target file has no valid filename".to_string())?;
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
-
-    Ok(parent.join(format!(
-        ".{}.{}.{}.{}.tmp",
-        file_name,
-        std::process::id(),
-        nanos,
-        attempt
-    )))
-}
-
-pub(crate) fn atomic_write_text(file_path: &Path, content: &str) -> Result<(), String> {
-    let mut last_error = None;
-
-    for attempt in 0..16 {
-        let temp_path = build_atomic_temp_path(file_path, attempt)?;
-        let mut guard = TempFileGuard::new(temp_path.clone());
-
-        let mut temp_file = match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp_path)
-        {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                last_error = Some(error);
-                continue;
-            }
-            Err(error) => return Err(format!("Cannot create temporary file: {}", error)),
-        };
-
-        temp_file
-            .write_all(content.as_bytes())
-            .map_err(|error| format!("Cannot write temporary file: {}", error))?;
-        temp_file
-            .sync_all()
-            .map_err(|error| format!("Cannot sync temporary file: {}", error))?;
-        drop(temp_file);
-
-        fs::rename(&temp_path, file_path)
-            .map_err(|error| format!("Cannot replace target file atomically: {}", error))?;
-        guard.disarm();
-        return Ok(());
-    }
-
-    Err(format!(
-        "Cannot create unique temporary file: {}",
-        last_error
-            .map(|error| error.to_string())
-            .unwrap_or_else(|| "too many attempts".to_string())
-    ))
-}
-
 fn generate_header(template: &str) -> String {
     generate_header_with_time(template, Local::now())
 }
 
-fn generate_header_with_time<Tz: chrono::TimeZone>(
+pub(crate) fn render_datetime_template(template: &str) -> String {
+    render_datetime_template_with_time(template, Local::now())
+}
+
+fn render_datetime_template_with_time<Tz: chrono::TimeZone>(
     template: &str,
     dt: chrono::DateTime<Tz>,
 ) -> String
@@ -153,7 +71,18 @@ where
             remaining = &remaining[ch.len_utf8()..];
         }
     }
+
     result
+}
+
+fn generate_header_with_time<Tz: chrono::TimeZone>(
+    template: &str,
+    dt: chrono::DateTime<Tz>,
+) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    render_datetime_template_with_time(template, dt)
 }
 
 pub fn build_daily_note_path(settings: &Settings) -> String {
@@ -262,53 +191,7 @@ pub fn save_note_at_path(
 }
 
 fn generate_filename_from_template(template: &str) -> String {
-    let now = Local::now();
-
-    // 12h-Zeitwerte vorbereiten
-    let hour_12 = now.format("%I").to_string();
-    let hour_12_nopad = if hour_12.starts_with('0') {
-        hour_12[1..].to_string()
-    } else {
-        hour_12.clone()
-    };
-    let ampm_lower = now.format("%P").to_string();
-    let ampm_upper = now.format("%p").to_string();
-
-    // Token -> Wert Zuordnung.
-    // Laengere Token zuerst, damit z.B. "hh" vor "h" matched.
-    // WICHTIG: Die Token-Namen selbst enthalten keine problematischen Zeichen,
-    // aber Nutzer sollten Doppelpunkte in Filename-Templates vermeiden
-    // (macOS erlaubt keine Doppelpunkte in Dateinamen).
-    let tokens: &[(&str, String)] = &[
-        ("YYYY", now.format("%Y").to_string()),
-        ("MM", now.format("%m").to_string()),
-        ("DD", now.format("%d").to_string()),
-        ("HH", now.format("%H").to_string()),
-        ("hh", hour_12),
-        ("mm", now.format("%M").to_string()),
-        ("ss", now.format("%S").to_string()),
-        ("h", hour_12_nopad),
-        ("a", ampm_lower),
-        ("A", ampm_upper),
-    ];
-
-    // Single-Pass: jedes Token wird nur im Original-Template erkannt,
-    // sodass eingesetzte Werte (z.B. "pm" enthaelt 'a') nie erneut ersetzt werden.
-    let mut result = String::with_capacity(template.len() * 2);
-    let mut remaining = template;
-    while !remaining.is_empty() {
-        if let Some((tok, val)) = tokens.iter().find(|(tok, _)| remaining.starts_with(tok)) {
-            result.push_str(val);
-            remaining = &remaining[tok.len()..];
-        } else {
-            // Safety: wir nehmen ein UTF-8-Zeichen, nicht nur ein Byte.
-            let ch = remaining.chars().next().unwrap();
-            result.push(ch);
-            remaining = &remaining[ch.len_utf8()..];
-        }
-    }
-
-    let mut filename = result;
+    let mut filename = render_datetime_template(template);
     if !filename.ends_with(".md") {
         filename.push_str(".md");
     }

@@ -6,6 +6,7 @@
 
 mod capture;
 mod edge_detect;
+mod fs_util;
 mod image_handler;
 mod log_safety;
 mod markdown_sections;
@@ -417,7 +418,7 @@ async fn write_note_file(
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     let resolved = resolve_vault_write_path(&settings, &path, true)?;
-    capture::atomic_write_text(&resolved, &content)
+    crate::fs_util::atomic_write_text(&resolved, &content)
         .map_err(|e| format!("Failed to write file: {}", e))
 }
 
