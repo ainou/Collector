@@ -652,6 +652,22 @@
         }
     }
 
+    function openWikiAutocomplete(trigger, matches) {
+        wikiAutocompleteQuery = trigger.query;
+        wikiAutocompleteMatches = matches;
+        wikiAutocompleteOpen = matches.length > 0;
+        wikiAutocompleteIndex = 0;
+        wikiAnchorPos = trigger.triggerIndex;
+    }
+
+    function resetWikiAutocomplete() {
+        wikiAutocompleteOpen = false;
+        wikiAutocompleteQuery = "";
+        wikiAutocompleteMatches = [];
+        wikiAutocompleteIndex = 0;
+        wikiAnchorPos = 0;
+    }
+
     function handleWikiInput() {
         if (!textareaRef) return;
 
@@ -670,11 +686,7 @@
             autocompleteResults,
         );
 
-        wikiAutocompleteQuery = trigger.query;
-        wikiAutocompleteMatches = results;
-        wikiAutocompleteOpen = results.length > 0;
-        wikiAutocompleteIndex = 0;
-        wikiAnchorPos = trigger.triggerIndex;
+        openWikiAutocomplete(trigger, results);
     }
 
     function insertWikilink(note) {
@@ -723,11 +735,7 @@
     }
 
     function closeWikiAutocomplete() {
-        wikiAutocompleteOpen = false;
-        wikiAutocompleteQuery = "";
-        wikiAutocompleteMatches = [];
-        wikiAutocompleteIndex = 0;
-        wikiAnchorPos = 0;
+        resetWikiAutocomplete();
     }
 
     async function openSettings() {
