@@ -54,6 +54,7 @@
     filterPaletteNotes,
     getOpenVaultNoteIntent,
   } from "./lib/reader/paletteLogic.js";
+  import { defaultSettings } from "./lib/stores.js";
 
   let tabs = [];
   let activeTabIndex = 0;
@@ -66,31 +67,7 @@
   let codeblockMap = new Map();
   let hiddenBlockMap = new Map();
   const scrollPositions = new Map();
-  let appSettings = {
-    vault_name: "Vault",
-    vault_path: "",
-    background_color: "#1e1e2e",
-    font_family: "-apple-system, BlinkMacSystemFont, SF Pro Display",
-    font_size: 15,
-    border_radius: 12,
-    window_transparency: 55,
-    window_blur: 80,
-    window_saturation: 200,
-    window_brightness: 0,
-    text_color: "#ffffff",
-    accent_color: "#8b5cf6",
-    internal_link_color: "#a78bfa",
-    external_link_color: "#60a5fa",
-    show_note_paths: true,
-    autocomplete_results: 20,
-    pinned_notes: [],
-    reader_hide_frontmatter: true,
-    reader_hide_dataview: true,
-    reader_hide_obsidian_comments: true,
-    reader_hide_inline_fields: true,
-    reader_hide_html: true,
-    reader_hide_callouts: true,
-  };
+  let appSettings = { ...defaultSettings };
   let statusMessage = "";
   let statusType = "";
   let missingFileMessage = "";

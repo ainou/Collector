@@ -6,6 +6,7 @@
     import { listen } from "@tauri-apps/api/event";
     import { onMount, onDestroy, tick } from "svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
+    import { defaultSettings } from "./lib/stores.js";
     import AppendToPicker from "./lib/reader/AppendToPicker.svelte";
     import CaptureWikilinkOverlay from "./lib/capture/CaptureWikilinkOverlay.svelte";
     import CaptureActionBar from "./lib/capture/CaptureActionBar.svelte";
@@ -67,27 +68,7 @@
     let globalDragLeave;
     let globalDrop;
 
-    let appSettings = {
-        background_color: "#1e1e2e",
-        font_family: "-apple-system, BlinkMacSystemFont, SF Pro Display",
-        font_size: 15,
-        border_radius: 12,
-        window_transparency: 55,
-        window_blur: 80,
-        window_saturation: 200,
-        window_brightness: 0,
-        text_color: "#ffffff",
-        accent_color: "#8b5cf6",
-        internal_link_color: "#a78bfa",
-        external_link_color: "#60a5fa",
-        entry_header: "#### HH:mm",
-        show_note_paths: true,
-        autocomplete_results: 20,
-        save_to_daily_shortcut: "Cmd+Enter",
-        save_as_note_shortcut: "Cmd+Shift+Enter",
-        append_to_note_shortcut: "Cmd+Option+Enter",
-        show_capture_action_bar: true,
-    };
+    let appSettings = { ...defaultSettings };
 
     $: showNotePaths = appSettings?.show_note_paths ?? true;
     $: autocompleteResults = appSettings?.autocomplete_results ?? 20;
@@ -336,17 +317,17 @@
                 font_family: settings.font_family,
                 font_size: settings.font_size,
                 border_radius: settings.border_radius,
-                window_transparency: settings.window_transparency ?? 55,
-                window_blur: settings.window_blur ?? 80,
-                window_saturation: settings.window_saturation ?? 200,
-                window_brightness: settings.window_brightness ?? 0,
-                text_color: settings.text_color ?? "#ffffff",
-                accent_color: settings.accent_color ?? "#8b5cf6",
-                internal_link_color: settings.internal_link_color ?? "#a78bfa",
-                external_link_color: settings.external_link_color ?? "#60a5fa",
-                entry_header: settings.entry_header ?? "#### HH:mm",
-                show_note_paths: settings.show_note_paths ?? true,
-                autocomplete_results: settings.autocomplete_results ?? 20,
+                window_transparency: settings.window_transparency ?? defaultSettings.window_transparency,
+                window_blur: settings.window_blur ?? defaultSettings.window_blur,
+                window_saturation: settings.window_saturation ?? defaultSettings.window_saturation,
+                window_brightness: settings.window_brightness ?? defaultSettings.window_brightness,
+                text_color: settings.text_color ?? defaultSettings.text_color,
+                accent_color: settings.accent_color ?? defaultSettings.accent_color,
+                internal_link_color: settings.internal_link_color ?? defaultSettings.internal_link_color,
+                external_link_color: settings.external_link_color ?? defaultSettings.external_link_color,
+                entry_header: settings.entry_header ?? defaultSettings.entry_header,
+                show_note_paths: settings.show_note_paths ?? defaultSettings.show_note_paths,
+                autocomplete_results: settings.autocomplete_results ?? defaultSettings.autocomplete_results,
                 save_to_daily_shortcut:
                     settings.save_to_daily_shortcut ?? "Cmd+Enter",
                 save_as_note_shortcut:

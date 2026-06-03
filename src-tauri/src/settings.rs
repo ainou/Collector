@@ -811,6 +811,14 @@ impl Settings {
             crate::shortcuts::validate_shortcut(&self.reader_close_shortcut)?;
         }
 
+        if !self.save_to_daily_shortcut.trim().is_empty() {
+            crate::shortcuts::validate_shortcut(&self.save_to_daily_shortcut)?;
+        }
+
+        if !self.append_to_note_shortcut.trim().is_empty() {
+            crate::shortcuts::validate_shortcut(&self.append_to_note_shortcut)?;
+        }
+
         if !self.global_shortcut_closes_window
             && !self.global_shortcut.trim().is_empty()
             && !self.global_close_shortcut.trim().is_empty()
