@@ -19,7 +19,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Action bar at the bottom of the capture window with three buttons:
   Daily Note, New Note, Append — same actions as the keyboard
   shortcuts. Can be toggled off in Settings.
-- Settings now save automatically (300 ms debounce). No Save button
+- Settings now save automatically after a short debounce. No Save button
   required.
 - Setting sections are now collapsible — click a heading to collapse
   or expand.
@@ -45,6 +45,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Settings window was white-on-white for dark mode users — now
   detects system preference and renders a proper dark theme.
 - Removed unused CSS selector in Settings.
+- Reset All now preserves the current vault connection and saves the
+  reset automatically.
+- Frontend defaults now include `vault_path`, preventing resets from
+  producing an undefined vault path.
+- Programmatic Settings changes now trigger auto-save for recorded
+  shortcuts, excluded edge apps, and pinned note icon/label changes.
+- Legacy `daily_note_path` configs are now migrated reliably to
+  `daily_note_folder` and `daily_note_format` without overwriting newer
+  configs.
 
 ---
 
