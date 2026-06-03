@@ -55,6 +55,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - Hardcoded "Journal" default for daily note folder removed — user-configured path is now respected; an error is shown if the folder is empty or missing.
+- Daily Notes folder is no longer silently created if it doesn't exist — an error is shown immediately instead.
 - Capture text shortcut (Cmd+Shift+C) now reliably reads selected text
   via clipboard sentinel instead of unreliable AXSelectedText API.
 - Blur and saturation had no effect when Brightness was set to 0.
