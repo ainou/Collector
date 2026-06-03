@@ -5,6 +5,49 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.3] - 2026-06-03
+
+### Added
+- Captures can now be inserted under a specific heading in the daily
+  note (configurable target heading, top or bottom of the section).
+  The heading can be auto-created if missing; falls back to appending
+  at the end when no target is set.
+- Daily notes can now be created automatically when missing —
+  Collector opens Obsidian (Advanced URI plugin necessary), waits for
+  the file to appear, and writes the capture into the configured
+  section. Timeout and stability-check are configurable.
+- Action bar at the bottom of the capture window with three buttons:
+  Daily Note, New Note, Append — same actions as the keyboard
+  shortcuts. Can be toggled off in Settings.
+- Settings now save automatically (300 ms debounce). No Save button
+  required.
+- Setting sections are now collapsible — click a heading to collapse
+  or expand.
+- **Dark mode for Settings.** The settings window now follows your
+  system appearance (light / dark). Clean, two proper themes with
+  custom-styled sliders, adaptive inputs, and consistent colours
+  across all panels.
+- Three new setting panels: **Vault**, **Capture**, **Reader**.
+  The old Obsidian Integration and
+  Note/Capture Window panels were split and reorganised.
+
+### Changed
+- Daily note captures now use section-insert logic instead of raw
+  file append. Existing behaviour is preserved when no target heading
+  is configured.
+- Section headings in settings larger (16 px) with more spacing.
+- Settings panel labels tidied up: "Look && Feel" → "Look & Feel",
+  "Note Window" → "Capture Window" throughout.
+
+### Fixed
+- Error message when waiting for the daily note no longer contains
+  awkward extra whitespace.
+- Settings window was white-on-white for dark mode users — now
+  detects system preference and renders a proper dark theme.
+- Removed unused CSS selector in Settings.
+
+---
+
 ## [1.2.2] - 2026-05-31
 
 ### Fixed
