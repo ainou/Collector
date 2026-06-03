@@ -1,15 +1,42 @@
 <script>
-    const ENABLE_DEMO_FAKE_BG = true; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
+    import { ENABLE_DEMO_FAKE_BG } from "./lib/demo-fake-bg.js";
     const DEMO_FAKE_BG = import.meta.env.DEV && ENABLE_DEMO_FAKE_BG;
 
     import { invoke } from "@tauri-apps/api/core";
     import { listen } from "@tauri-apps/api/event";
     import { onMount, onDestroy, tick } from "svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
+    import { defaultSettings } from "./lib/stores.js";
     import AppendToPicker from "./lib/reader/AppendToPicker.svelte";
-    import WikilinkPicker from "./lib/WikilinkPicker.svelte";
+    import CaptureWikilinkOverlay from "./lib/capture/CaptureWikilinkOverlay.svelte";
+    import CaptureActionBar from "./lib/capture/CaptureActionBar.svelte";
+    import CaptureStatus from "./lib/capture/CaptureStatus.svelte";
+    import CaptureLoadingIndicator from "./lib/capture/CaptureLoadingIndicator.svelte";
+    import CaptureResizeHandle from "./lib/capture/CaptureResizeHandle.svelte";
+    import CaptureImageGallery from "./lib/capture/CaptureImageGallery.svelte";
+    import CaptureAccentLine from "./lib/capture/CaptureAccentLine.svelte";
+    import CaptureDropOverlay from "./lib/capture/CaptureDropOverlay.svelte";
+    import CaptureEditor from "./lib/capture/CaptureEditor.svelte";
     import { filterPaletteNotes } from "./lib/reader/paletteLogic.js";
     import { getAutocompleteResults } from "./lib/reader/autocomplete.js";
+    import {
+        isFileDrag,
+        normalizeFilePath,
+        normalizeImageResult,
+        parseHeadings,
+        formatEntryHeader,
+        getVaultNotePath,
+        matchesShortcut,
+    } from "./lib/capture/capture-utils.js";
+    import {
+        findWikiTrigger,
+        computeWikilinkInsertion,
+    } from "./lib/capture/wiki-utils.js";
+    import {
+        appendToDailyNoteAction,
+        saveAsNoteAction,
+        closeCaptureAction,
+    } from "./lib/capture/capture-actions.js";
 
     let textareaRef;
     let content = "";
@@ -27,7 +54,11 @@
     let appendPickerHeadingIndex = 0;
     let appendPickerInputRef;
     let uploadedImages = [];
+    let unlistenReset;
     let unlistenShow;
+    let unlistenInsertCaptureText;
+    let unlistenCaptureTextFailed;
+    let unlistenSaveAsNote;
     let unlistenSettingsChanged;
     let unlistenDragDrop;
     let isTauri = false;
@@ -37,38 +68,19 @@
     let wikiAutocompleteQuery = "";
     let wikiAutocompleteIndex = 0;
     let wikiAutocompleteMatches = [];
+    let wikiAutocompletePosition = { left: 0, top: 0 };
     let wikiAnchorPos = 0;
     let globalDragLeave;
     let globalDrop;
 
-    let appSettings = {
-        background_color: "#1e1e2e",
-        font_family: "-apple-system, BlinkMacSystemFont, SF Pro Display",
-        font_size: 15,
-        border_radius: 12,
-        window_transparency: 55,
-        window_blur: 80,
-        window_saturation: 200,
-        window_brightness: 0,
-        text_color: "#ffffff",
-        accent_color: "#8b5cf6",
-        internal_link_color: "#a78bfa",
-        external_link_color: "#60a5fa",
-        entry_header: "#### HH:mm",
-        show_note_paths: true,
-        autocomplete_results: 20,
-        save_to_daily_shortcut: "Cmd+Enter",
-        save_as_note_shortcut: "Cmd+Shift+Enter",
-        append_to_note_shortcut: "Cmd+Option+Enter",
-        show_capture_action_bar: true,
-    };
+    let appSettings = { ...defaultSettings };
 
     $: showNotePaths = appSettings?.show_note_paths ?? true;
     $: autocompleteResults = appSettings?.autocomplete_results ?? 20;
 
     $: brightnessFilter = (() => {
         const b = appSettings.window_brightness;
-        if (b === 0) return "";
+        if (b === 0) return " brightness(1)";
 
         if (b > 0) {
             const brightnessValue = 1 + (b / 100) * 0.6;
@@ -80,13 +92,6 @@
             return ` brightness(${brightnessValue}) contrast(${contrastValue})`;
         }
     })();
-
-    function isFileDrag(e) {
-        const types = e.dataTransfer?.types;
-        if (types && Array.from(types).includes("Files")) return true;
-        const items = e.dataTransfer?.items;
-        return !!items && items.length > 0;
-    }
 
     function applyColorSettings(settings = appSettings) {
         const root = document.documentElement;
@@ -102,74 +107,6 @@
             "--external-link-color",
             settings.external_link_color ?? "#60a5fa",
         );
-    }
-
-    function normalizeFilePath(path) {
-        if (!path) return "";
-        if (path.startsWith("file://")) {
-            return decodeURIComponent(path.replace("file://", ""));
-        }
-        return path;
-    }
-
-    function normalizeImageResult(result) {
-        if (typeof result === "string") {
-            return {
-                markdown: result,
-                saved_path: null,
-                filename: null,
-                preview_data_url: "",
-            };
-        }
-        return {
-            markdown: result?.markdown ?? "",
-            saved_path: result?.saved_path ?? null,
-            filename: result?.filename ?? null,
-            preview_data_url: result?.preview_data_url ?? "",
-        };
-    }
-
-    function parseHeadings(content) {
-        const lines = content.split("\n");
-        const headings = [];
-
-        lines.forEach((line, index) => {
-            const match = line.match(/^(#{1,6})\s+(.+)/);
-            if (!match) return;
-
-            headings.push({
-                level: match[1].length,
-                text: match[2].trim(),
-                display: line.trim(),
-                lineIndex: index,
-            });
-        });
-
-        return headings;
-    }
-
-    function formatEntryHeader(template = "#### HH:mm") {
-        const now = new Date();
-        const replacements = {
-            YYYY: String(now.getFullYear()),
-            MM: String(now.getMonth() + 1).padStart(2, "0"),
-            DD: String(now.getDate()).padStart(2, "0"),
-            HH: String(now.getHours()).padStart(2, "0"),
-            mm: String(now.getMinutes()).padStart(2, "0"),
-            ss: String(now.getSeconds()).padStart(2, "0"),
-        };
-
-        return String(template ?? "")
-            .replace(/YYYY/g, replacements.YYYY)
-            .replace(/MM/g, replacements.MM)
-            .replace(/DD/g, replacements.DD)
-            .replace(/HH/g, replacements.HH)
-            .replace(/mm/g, replacements.mm)
-            .replace(/ss/g, replacements.ss);
-    }
-
-    function getVaultNotePath(note = {}) {
-        return note?.relative_path || note?.path || "";
     }
 
     async function insertAfterHeading(notePath, heading, text) {
@@ -243,15 +180,9 @@
         }
     }
 
-    onMount(async () => {
-        try {
-            await getCurrentWindow();
-            isTauri = true;
-        } catch (e) {
-            // Browser preview mode has no Tauri window API.
-            isTauri = false;
-        }
+    /* ── onMount setup helpers ── */
 
+    function setupGlobalDragListeners() {
         globalDragEnter = (e) => {
             if (!isFileDrag(e)) return;
             e.preventDefault();
@@ -286,165 +217,199 @@
         document.addEventListener("dragover", globalDragOver, true);
         document.addEventListener("dragleave", globalDragLeave, true);
         document.addEventListener("drop", globalDrop, true);
+    }
+
+    async function setupCaptureWindowListeners() {
+        // reset_capture: clear all capture state for a fresh start.
+        // Emitted before show_capture when the user wants a clean slate
+        // (global shortcut, edge detection, tray).
+        // NOT emitted by capture-text (Cmd+Shift+C) — that must append.
+        unlistenReset = await listen("reset_capture", () => {
+            freeBlobUrls();
+            resetCaptureState();
+            statusMessage = "";
+            closeAppendPicker();
+        });
+
+        unlistenShow = await listen("show_capture", () => {
+            // Just show and focus — no reset, so existing content survives.
+            setTimeout(() => textareaRef?.focus(), 50);
+        });
+
+        unlistenInsertCaptureText = await listen("insert_capture_text", (event) => {
+            const text = typeof event.payload === "string" ? event.payload : "";
+            if (!text.trim()) return;
+            // Append captured text to existing content instead of replacing it.
+            // If content is empty, set directly; otherwise add spacing then append.
+            if (!content.trim()) {
+                content = text;
+            } else {
+                // Add spacing: if content doesn't end with a blank line, insert two newlines.
+                // If it already ends with a blank line, insert one newline.
+                const endsWithBlank = /\n\s*\n$/.test(content);
+                content = content + (endsWithBlank ? "\n" : "\n\n") + text;
+            }
+            // Required: after the native Tauri insert event, macOS needs a short delay
+            // before the textarea reliably accepts focus.
+            setTimeout(() => textareaRef?.focus(), 50);
+        });
+
+        unlistenCaptureTextFailed = await listen("capture_text_failed", (event) => {
+            const msg =
+                typeof event.payload === "string"
+                    ? event.payload
+                    : "Nothing to capture";
+            showStatus("✗ " + msg, "error");
+        });
+
+        unlistenSaveAsNote = await listen("save_as_note", () => {
+            handleSaveAsNote();
+        });
+    }
+
+    async function setupSettingsListener() {
+        unlistenSettingsChanged = await listen("settings_changed", (event) => {
+            const newSettings = event.payload;
+
+            appSettings = {
+                ...appSettings,
+                overlay_color:
+                    newSettings.overlay_color ??
+                    appSettings.overlay_color,
+                font_family: newSettings.font_family ?? appSettings.font_family,
+                font_size: newSettings.font_size ?? appSettings.font_size,
+                border_radius:
+                    newSettings.border_radius ?? appSettings.border_radius,
+                overlay_strength:
+                    newSettings.overlay_strength ??
+                    appSettings.overlay_strength,
+                window_blur: newSettings.window_blur ?? appSettings.window_blur,
+                window_saturation:
+                    newSettings.window_saturation ??
+                    appSettings.window_saturation,
+                window_brightness:
+                    newSettings.window_brightness ??
+                    appSettings.window_brightness,
+                text_color: newSettings.text_color ?? appSettings.text_color,
+                accent_color:
+                    newSettings.accent_color ?? appSettings.accent_color,
+                internal_link_color:
+                    newSettings.internal_link_color ??
+                    appSettings.internal_link_color,
+                external_link_color:
+                    newSettings.external_link_color ??
+                    appSettings.external_link_color,
+                entry_header:
+                    newSettings.entry_header ?? appSettings.entry_header,
+                show_note_paths:
+                    newSettings.show_note_paths ?? appSettings.show_note_paths,
+                autocomplete_results:
+                    newSettings.autocomplete_results ??
+                    appSettings.autocomplete_results,
+                save_to_daily_shortcut:
+                    newSettings.save_to_daily_shortcut ??
+                    appSettings.save_to_daily_shortcut,
+                save_as_note_shortcut:
+                    newSettings.save_as_note_shortcut ??
+                    appSettings.save_as_note_shortcut,
+                append_to_note_shortcut:
+                    newSettings.append_to_note_shortcut ??
+                    appSettings.append_to_note_shortcut,
+                show_capture_action_bar:
+                    newSettings.show_capture_action_bar ??
+                    appSettings.show_capture_action_bar,
+            };
+            applyColorSettings(appSettings);
+        });
+    }
+
+    async function setupTauriDragDrop() {
+        const currentWindow = await getCurrentWindow();
+        unlistenDragDrop =
+            await currentWindow.onDragDropEvent(handleDragDropEvent);
+    }
+
+    async function loadInitialSettings() {
+        try {
+            const settings = await invoke("load_settings");
+            appSettings = {
+                overlay_color: settings.overlay_color,
+                font_family: settings.font_family,
+                font_size: settings.font_size,
+                border_radius: settings.border_radius,
+                overlay_strength:
+                    settings.overlay_strength ??
+                    defaultSettings.overlay_strength,
+                window_blur:
+                    settings.window_blur ?? defaultSettings.window_blur,
+                window_saturation:
+                    settings.window_saturation ??
+                    defaultSettings.window_saturation,
+                window_brightness:
+                    settings.window_brightness ??
+                    defaultSettings.window_brightness,
+                text_color: settings.text_color ?? defaultSettings.text_color,
+                accent_color:
+                    settings.accent_color ?? defaultSettings.accent_color,
+                internal_link_color:
+                    settings.internal_link_color ??
+                    defaultSettings.internal_link_color,
+                external_link_color:
+                    settings.external_link_color ??
+                    defaultSettings.external_link_color,
+                entry_header:
+                    settings.entry_header ?? defaultSettings.entry_header,
+                show_note_paths:
+                    settings.show_note_paths ?? defaultSettings.show_note_paths,
+                autocomplete_results:
+                    settings.autocomplete_results ??
+                    defaultSettings.autocomplete_results,
+                save_to_daily_shortcut:
+                    settings.save_to_daily_shortcut ?? "Cmd+Enter",
+                save_as_note_shortcut:
+                    settings.save_as_note_shortcut ?? "Cmd+Shift+Enter",
+                append_to_note_shortcut:
+                    settings.append_to_note_shortcut ?? "Cmd+Option+Enter",
+                show_capture_action_bar:
+                    settings.show_capture_action_bar ?? true,
+            };
+            applyColorSettings(appSettings);
+        } catch (e) {
+            console.error("Failed to load initial settings:", e);
+        }
+    }
+
+    function preloadVaultNotes() {
+        // Preload vault notes so the append picker can open immediately.
+        invoke("list_vault_notes")
+            .then((notes) => {
+                appendPickerNotes = notes;
+            })
+            .catch(() => {
+                // Non-fatal: the picker can still lazy-load later.
+            });
+    }
+
+    /* ── onMount ── */
+
+    onMount(async () => {
+        try {
+            await getCurrentWindow();
+            isTauri = true;
+        } catch (e) {
+            // Browser preview mode has no Tauri window API.
+            isTauri = false;
+        }
+
+        setupGlobalDragListeners();
 
         if (isTauri) {
             try {
-                unlistenShow = await listen("show_capture", () => {
-                    uploadedImages.forEach((img) => {
-                        if (img.preview && img.preview.startsWith("blob:")) {
-                            URL.revokeObjectURL(img.preview);
-                        }
-                    });
-                    content = "";
-                    uploadedImages = [];
-                    statusMessage = "";
-                    isDragging = false;
-                    dragCounter = 0;
-                    isLoading = false;
-                    closeAppendPicker();
-                    // Required: after the native Tauri show event, macOS needs a short delay
-                    // before the textarea reliably accepts focus.
-                    setTimeout(() => textareaRef?.focus(), 50);
-                });
-
-                await listen("insert_capture_text", (event) => {
-                    const text =
-                        typeof event.payload === "string" ? event.payload : "";
-                    if (!text.trim()) return;
-                    content = text;
-                    // Required: after the native Tauri insert event, macOS needs a short delay
-                    // before the textarea reliably accepts focus.
-                    setTimeout(() => textareaRef?.focus(), 50);
-                });
-
-                await listen("capture_text_failed", (event) => {
-                    const msg =
-                        typeof event.payload === "string"
-                            ? event.payload
-                            : "Nothing to capture";
-                    showStatus("✗ " + msg, "error");
-                });
-
-                await listen("save_as_note", () => {
-                    handleSaveAsNote();
-                });
-
-                unlistenSettingsChanged = await listen(
-                    "settings_changed",
-                    (event) => {
-                        const newSettings = event.payload;
-
-                        appSettings = {
-                            ...appSettings,
-                            background_color:
-                                newSettings.background_color ??
-                                appSettings.background_color,
-                            font_family:
-                                newSettings.font_family ??
-                                appSettings.font_family,
-                            font_size:
-                                newSettings.font_size ?? appSettings.font_size,
-                            border_radius:
-                                newSettings.border_radius ??
-                                appSettings.border_radius,
-                            window_transparency:
-                                newSettings.window_transparency ??
-                                appSettings.window_transparency,
-                            window_blur:
-                                newSettings.window_blur ??
-                                appSettings.window_blur,
-                            window_saturation:
-                                newSettings.window_saturation ??
-                                appSettings.window_saturation,
-                            window_brightness:
-                                newSettings.window_brightness ??
-                                appSettings.window_brightness,
-                            text_color:
-                                newSettings.text_color ??
-                                appSettings.text_color,
-                            accent_color:
-                                newSettings.accent_color ??
-                                appSettings.accent_color,
-                            internal_link_color:
-                                newSettings.internal_link_color ??
-                                appSettings.internal_link_color,
-                            external_link_color:
-                                newSettings.external_link_color ??
-                                appSettings.external_link_color,
-                            entry_header:
-                                newSettings.entry_header ??
-                                appSettings.entry_header,
-                            show_note_paths:
-                                newSettings.show_note_paths ??
-                                appSettings.show_note_paths,
-                            autocomplete_results:
-                                newSettings.autocomplete_results ??
-                                appSettings.autocomplete_results,
-                            save_to_daily_shortcut:
-                                newSettings.save_to_daily_shortcut ??
-                                appSettings.save_to_daily_shortcut,
-                            save_as_note_shortcut:
-                                newSettings.save_as_note_shortcut ??
-                                appSettings.save_as_note_shortcut,
-                            append_to_note_shortcut:
-                                newSettings.append_to_note_shortcut ??
-                                appSettings.append_to_note_shortcut,
-                            show_capture_action_bar:
-                                newSettings.show_capture_action_bar ??
-                                appSettings.show_capture_action_bar,
-                        };
-                        applyColorSettings(appSettings);
-                    },
-                );
-
-                const currentWindow = await getCurrentWindow();
-                unlistenDragDrop =
-                    await currentWindow.onDragDropEvent(handleDragDropEvent);
-
-                try {
-                    const settings = await invoke("load_settings");
-                    appSettings = {
-                        background_color: settings.background_color,
-                        font_family: settings.font_family,
-                        font_size: settings.font_size,
-                        border_radius: settings.border_radius,
-                        window_transparency: settings.window_transparency ?? 55,
-                        window_blur: settings.window_blur ?? 80,
-                        window_saturation: settings.window_saturation ?? 200,
-                        window_brightness: settings.window_brightness ?? 0,
-                        text_color: settings.text_color ?? "#ffffff",
-                        accent_color: settings.accent_color ?? "#8b5cf6",
-                        internal_link_color:
-                            settings.internal_link_color ?? "#a78bfa",
-                        external_link_color:
-                            settings.external_link_color ?? "#60a5fa",
-                        entry_header: settings.entry_header ?? "#### HH:mm",
-                        show_note_paths: settings.show_note_paths ?? true,
-                        autocomplete_results:
-                            settings.autocomplete_results ?? 20,
-                        save_to_daily_shortcut:
-                            settings.save_to_daily_shortcut ?? "Cmd+Enter",
-                        save_as_note_shortcut:
-                            settings.save_as_note_shortcut ?? "Cmd+Shift+Enter",
-                        append_to_note_shortcut:
-                            settings.append_to_note_shortcut ??
-                            "Cmd+Option+Enter",
-                        show_capture_action_bar:
-                            settings.show_capture_action_bar ?? true,
-                    };
-                    applyColorSettings(appSettings);
-                } catch (e) {
-                    console.error("Failed to load initial settings:", e);
-                }
-
-                // Preload vault notes so the append picker can open immediately.
-                invoke("list_vault_notes")
-                    .then((notes) => {
-                        appendPickerNotes = notes;
-                    })
-                    .catch(() => {
-                        // Non-fatal: the picker can still lazy-load later.
-                    });
+                await setupCaptureWindowListeners();
+                await setupSettingsListener();
+                await setupTauriDragDrop();
+                await loadInitialSettings();
+                preloadVaultNotes();
             } catch (e) {
                 console.error("Failed to listen to events:", e);
             }
@@ -452,7 +417,11 @@
     });
 
     onDestroy(() => {
+        unlistenReset?.();
         unlistenShow?.();
+        unlistenInsertCaptureText?.();
+        unlistenCaptureTextFailed?.();
+        unlistenSaveAsNote?.();
         unlistenSettingsChanged?.();
         unlistenDragDrop?.();
 
@@ -469,11 +438,7 @@
             document.removeEventListener("drop", globalDrop, true);
         }
 
-        uploadedImages.forEach((img) => {
-            if (img.preview && img.preview.startsWith("blob:")) {
-                URL.revokeObjectURL(img.preview);
-            }
-        });
+        freeBlobUrls();
     });
 
     function showStatus(message, type = "success") {
@@ -481,6 +446,32 @@
         statusType = type;
         // Hide the transient status toast after its display period.
         setTimeout(() => (statusMessage = ""), 2000);
+    }
+
+    function freeBlobUrls() {
+        uploadedImages.forEach((img) => {
+            if (img.preview && img.preview.startsWith("blob:")) {
+                URL.revokeObjectURL(img.preview);
+            }
+        });
+    }
+
+    function resetCaptureState() {
+        content = "";
+        uploadedImages = [];
+        isDragging = false;
+        dragCounter = 0;
+        isLoading = false;
+    }
+
+    function deferHideCapture() {
+        setTimeout(async () => {
+            try {
+                await invoke("hide_capture");
+            } catch (e) {
+                console.error("Hide error:", e);
+            }
+        }, 200);
     }
 
     function openAppendPicker() {
@@ -516,58 +507,25 @@
 
         isLoading = true;
 
-        try {
-            await invoke("append_to_daily_note", {
-                text: content.trim(),
-            });
-
-            showStatus("✓ Saved", "success");
-
-            uploadedImages.forEach((img) => {
-                if (img.preview && img.preview.startsWith("blob:")) {
-                    URL.revokeObjectURL(img.preview);
-                }
-            });
-
-            content = "";
-            uploadedImages = [];
-            isDragging = false;
-            dragCounter = 0;
-            isLoading = false;
-
-            // Required: hiding the capture window immediately after save can race the
-            // native save flow on macOS, so the close is delayed slightly.
-            setTimeout(async () => {
-                try {
-                    await invoke("hide_capture");
-                } catch (e) {
-                    console.error("Hide error:", e);
-                }
-            }, 200);
-        } catch (e) {
-            console.error("Append to daily note failed:", e);
-            showStatus("✗ " + e.toString(), "error");
-            isLoading = false;
-        }
+        await appendToDailyNoteAction({
+            content: content.trim(),
+            invoke,
+            showStatus,
+            freeBlobUrls,
+            resetCaptureState,
+            deferHideCapture,
+            setLoading: (v) => {
+                isLoading = v;
+            },
+        });
     }
 
     async function handleClose() {
-        uploadedImages.forEach((img) => {
-            if (img.preview && img.preview.startsWith("blob:")) {
-                URL.revokeObjectURL(img.preview);
-            }
+        await closeCaptureAction({
+            invoke,
+            freeBlobUrls,
+            resetCaptureState,
         });
-        content = "";
-        uploadedImages = [];
-        isDragging = false;
-        dragCounter = 0;
-        isLoading = false;
-
-        try {
-            await invoke("hide_capture");
-        } catch (e) {
-            console.error("Failed to hide window:", e);
-        }
     }
 
     async function handleSaveAsNote() {
@@ -575,55 +533,17 @@
 
         isLoading = true;
 
-        try {
-            const trimmed = content.trim();
-            const lines = trimmed.split("\n");
-            const firstLine = lines[0].trimEnd();
-
-            let title = null;
-            let body = trimmed;
-
-            if (firstLine.match(/^#\s+.+/)) {
-                title = firstLine.replace(/^#+\s+/, "").trim();
-                const rest = lines.slice(1);
-                while (rest.length > 0 && rest[0].trim() === "") {
-                    rest.shift();
-                }
-                body = rest.join("\n").trim();
-            }
-
-            const result = await invoke("save_as_note", {
-                content: body,
-                title: title,
-            });
-            showStatus("✓ " + result, "success");
-
-            uploadedImages.forEach((img) => {
-                if (img.preview && img.preview.startsWith("blob:")) {
-                    URL.revokeObjectURL(img.preview);
-                }
-            });
-            content = "";
-            uploadedImages = [];
-            isDragging = false;
-            dragCounter = 0;
-
-            isLoading = false;
-
-            // Required: hiding the capture window immediately after save can race the
-            // native save flow on macOS, so the close is delayed slightly.
-            setTimeout(async () => {
-                try {
-                    await invoke("hide_capture");
-                } catch (e) {
-                    console.error("Hide error:", e);
-                }
-            }, 200);
-        } catch (e) {
-            console.error("Save as note failed:", e);
-            showStatus("✗ " + e.toString(), "error");
-            isLoading = false;
-        }
+        await saveAsNoteAction({
+            content,
+            invoke,
+            showStatus,
+            freeBlobUrls,
+            resetCaptureState,
+            deferHideCapture,
+            setLoading: (v) => {
+                isLoading = v;
+            },
+        });
     }
 
     async function handleNoteSelected(note) {
@@ -685,73 +605,13 @@
                 await insertAfterHeading(notePath, heading, content.trim());
             }
 
-            showStatus("✓ Appended", "success");
-
-            uploadedImages.forEach((img) => {
-                if (img.preview && img.preview.startsWith("blob:")) {
-                    URL.revokeObjectURL(img.preview);
-                }
-            });
-
-            content = "";
-            uploadedImages = [];
-            isDragging = false;
-            dragCounter = 0;
-            isLoading = false;
-
-            setTimeout(async () => {
-                try {
-                    await invoke("hide_capture");
-                } catch (e) {
-                    console.error("Hide error:", e);
-                }
-            }, 200);
+            freeBlobUrls();
+            resetCaptureState();
+            deferHideCapture();
         } catch (e) {
             showStatus("✗ " + e.toString(), "error");
             isLoading = false;
         }
-    }
-
-    function matchesShortcut(event, shortcutString) {
-        if (!shortcutString) return false;
-
-        const parts = shortcutString.split("+").map((p) => p.trim());
-        const modifiers = {
-            hasCmd: parts.includes("Cmd") || parts.includes("Command"),
-            hasCtrl: parts.includes("Ctrl") || parts.includes("Control"),
-            hasShift: parts.includes("Shift"),
-            hasAlt:
-                parts.includes("Alt") ||
-                parts.includes("Option") ||
-                parts.includes("Opt"),
-        };
-
-        const key = parts.find(
-            (p) =>
-                ![
-                    "Cmd",
-                    "Command",
-                    "Ctrl",
-                    "Control",
-                    "Shift",
-                    "Alt",
-                    "Option",
-                    "Opt",
-                ].includes(p),
-        );
-
-        if (!key) return false;
-
-        const modifiersMatch =
-            (event.metaKey === modifiers.hasCmd ||
-                event.ctrlKey === modifiers.hasCmd) &&
-            event.ctrlKey === modifiers.hasCtrl &&
-            event.shiftKey === modifiers.hasShift &&
-            event.altKey === modifiers.hasAlt;
-
-        const keyMatches = event.key.toLowerCase() === key.toLowerCase();
-
-        return modifiersMatch && keyMatches;
     }
 
     async function handleKeydown(e) {
@@ -816,37 +676,46 @@
         }
     }
 
+    function openWikiAutocomplete(trigger, matches) {
+        wikiAutocompleteQuery = trigger.query;
+        wikiAutocompleteMatches = matches;
+        wikiAutocompleteIndex = 0;
+        wikiAnchorPos = trigger.triggerIndex;
+        wikiAutocompletePosition = getWikiDropdownPosition(
+            trigger.triggerIndex,
+            textareaRef?.selectionStart ?? trigger.triggerIndex,
+        );
+        wikiAutocompleteOpen = matches.length > 0;
+    }
+
+    function resetWikiAutocomplete() {
+        wikiAutocompleteOpen = false;
+        wikiAutocompleteQuery = "";
+        wikiAutocompleteMatches = [];
+        wikiAutocompleteIndex = 0;
+        wikiAutocompletePosition = { left: 0, top: 0 };
+        wikiAnchorPos = 0;
+    }
+
     function handleWikiInput() {
         if (!textareaRef) return;
 
         const val = textareaRef.value;
         const cursor = textareaRef.selectionStart;
+        const trigger = findWikiTrigger(val, cursor);
 
-        // Look back from cursor for unmatched [[
-        const before = val.slice(0, cursor);
-        const triggerIndex = before.lastIndexOf("[[");
-
-        if (
-            triggerIndex === -1 ||
-            before.slice(triggerIndex + 2).includes("]]") ||
-            before.slice(triggerIndex + 2).includes("\n")
-        ) {
+        if (!trigger) {
             closeWikiAutocomplete();
             return;
         }
 
-        const query = before.slice(triggerIndex + 2);
         const results = getAutocompleteResults(
-            query,
+            trigger.query,
             appendPickerNotes,
             autocompleteResults,
         );
 
-        wikiAutocompleteQuery = query;
-        wikiAutocompleteMatches = results;
-        wikiAutocompleteOpen = results.length > 0;
-        wikiAutocompleteIndex = 0;
-        wikiAnchorPos = triggerIndex;
+        openWikiAutocomplete(trigger, results);
     }
 
     function insertWikilink(note) {
@@ -855,54 +724,112 @@
         const val = textareaRef.value;
         const cursor = textareaRef.selectionStart;
         const queryLen = wikiAutocompleteQuery.length;
-        const anchor = cursor - queryLen - 2;
 
-        if (anchor < 0) return;
+        if (cursor - queryLen - 2 < 0) return;
 
-        const before = val.slice(0, anchor);
-        const after = val.slice(cursor);
-        const insertion = `[[${note.name}]]`;
-        const newPos = before.length + insertion.length;
+        const { before, after, insertion, newPosition } =
+            computeWikilinkInsertion(val, cursor, queryLen, note.name);
 
         textareaRef.value = before + insertion + after;
-        textareaRef.selectionStart = newPos;
-        textareaRef.selectionEnd = newPos;
+        textareaRef.selectionStart = newPosition;
+        textareaRef.selectionEnd = newPosition;
         textareaRef.focus();
 
         content = textareaRef.value;
         closeWikiAutocomplete();
     }
 
-    function getWikiDropdownPosition() {
+    function getTextareaPosition(textarea, position) {
+        const rect = textarea.getBoundingClientRect();
+        const style = getComputedStyle(textarea);
+        const mirror = document.createElement("div");
+        const marker = document.createElement("span");
+        const copyStyles = [
+            "boxSizing",
+            "borderTopWidth",
+            "borderRightWidth",
+            "borderBottomWidth",
+            "borderLeftWidth",
+            "fontFamily",
+            "fontSize",
+            "fontStyle",
+            "fontVariant",
+            "fontWeight",
+            "letterSpacing",
+            "lineHeight",
+            "paddingTop",
+            "paddingRight",
+            "paddingBottom",
+            "paddingLeft",
+            "tabSize",
+            "textIndent",
+            "textTransform",
+            "wordBreak",
+            "wordSpacing",
+        ];
+
+        copyStyles.forEach((property) => {
+            mirror.style[property] = style[property];
+        });
+
+        mirror.style.position = "absolute";
+        mirror.style.visibility = "hidden";
+        mirror.style.pointerEvents = "none";
+        mirror.style.whiteSpace = "pre-wrap";
+        mirror.style.wordWrap = "break-word";
+        mirror.style.overflowWrap = "break-word";
+        mirror.style.overflow = "hidden";
+        mirror.style.width = `${textarea.offsetWidth}px`;
+        mirror.style.top = "0";
+        mirror.style.left = "-9999px";
+
+        const textBefore = textarea.value.substring(0, position);
+        mirror.textContent = textBefore.endsWith("\n")
+            ? `${textBefore} `
+            : textBefore;
+        marker.textContent = ".";
+        mirror.appendChild(marker);
+        document.body.appendChild(mirror);
+
+        try {
+            const lineHeight = parseFloat(style.lineHeight) || 24;
+
+            return {
+                left: rect.left + marker.offsetLeft - textarea.scrollLeft,
+                top: rect.top + marker.offsetTop - textarea.scrollTop,
+                bottom:
+                    rect.top +
+                    marker.offsetTop -
+                    textarea.scrollTop +
+                    lineHeight,
+            };
+        } finally {
+            mirror.remove();
+        }
+    }
+
+    function clampWikiDropdownLeft(left) {
+        const margin = 12;
+        const pickerWidth = Math.min(320, window.innerWidth - margin * 2);
+        const maxLeft = window.innerWidth - pickerWidth - margin;
+
+        return Math.max(margin, Math.min(left, maxLeft));
+    }
+
+    function getWikiDropdownPosition(anchorPosition, cursorPosition) {
         if (!textareaRef) return { left: 0, top: 0 };
 
-        const taRect = textareaRef.getBoundingClientRect();
-        const style = getComputedStyle(textareaRef);
-        const lineHeight = parseFloat(style.lineHeight) || 24;
-        const paddingTop = parseFloat(style.paddingTop) || 12;
-        const paddingLeft = parseFloat(style.paddingLeft) || 16;
-
-        // Find which line the [[ anchor is on
-        const textBefore = textareaRef.value.substring(0, wikiAnchorPos);
-        const lineNumber = textBefore.split("\n").length; // 1-indexed
+        const anchorRect = getTextareaPosition(textareaRef, anchorPosition);
+        const caretRect = getTextareaPosition(textareaRef, cursorPosition);
 
         return {
-            left: taRect.left + paddingLeft,
-            top:
-                taRect.top +
-                paddingTop +
-                (lineNumber - 1) * lineHeight -
-                textareaRef.scrollTop +
-                lineHeight,
+            left: clampWikiDropdownLeft(anchorRect.left),
+            top: caretRect.bottom + 6,
         };
     }
 
     function closeWikiAutocomplete() {
-        wikiAutocompleteOpen = false;
-        wikiAutocompleteQuery = "";
-        wikiAutocompleteMatches = [];
-        wikiAutocompleteIndex = 0;
-        wikiAnchorPos = 0;
+        resetWikiAutocomplete();
     }
 
     async function openSettings() {
@@ -1273,11 +1200,11 @@
     class:dragging={isDragging}
     class:append-picker-open={showAppendPicker}
     style="
-    --app-background: {appSettings.background_color};
+    --app-background: {appSettings.overlay_color};
     --app-font-family: {appSettings.font_family};
     --app-font-size: {appSettings.font_size}px;
     --app-border-radius: {appSettings.border_radius}px;
-    --app-transparency: {appSettings.window_transparency}%;
+    --app-transparency: {appSettings.overlay_strength}%;
     --app-blur: {appSettings.window_blur}px;
     --app-saturation: {appSettings.window_saturation}%;
     --app-text-color: {appSettings.text_color};
@@ -1289,7 +1216,7 @@
     on:drop={handleDrop}
     role="application"
 >
-    <div class="accent-line" role="presentation"></div>
+    <CaptureAccentLine />
 
     <div
         class="content-wrapper"
@@ -1305,134 +1232,58 @@
             handleDragEnter(e);
         }}
     >
-        {#if uploadedImages.some((img) => img.preview)}
-            <div
-                class="image-gallery"
-                role="presentation"
-                on:drop={(e) => {
-                    handleDrop(e);
-                }}
-                on:dragover={(e) => {
-                    e.preventDefault();
-                    handleDragOver(e);
-                }}
-                on:dragenter={(e) => {
-                    handleDragEnter(e);
-                }}
-            >
-                {#each uploadedImages.filter((img) => img.preview) as image (image.id)}
-                    <div class="image-preview">
-                        <img src={image.preview} alt={image.filename} />
-                        <button
-                            class="remove-btn"
-                            on:click={() => removeImage(image.id)}
-                            title="Remove"
-                        >
-                            ×
-                        </button>
-                        <div class="image-name">{image.filename}</div>
-                    </div>
-                {/each}
-            </div>
-        {/if}
-
-        <div
-            class="content-area"
-            role="presentation"
-            on:drop={(e) => {
-                handleDrop(e);
-            }}
+        <CaptureImageGallery
+            images={uploadedImages}
+            on:remove={(event) => removeImage(event.detail)}
+            on:drop={(e) => handleDrop(e)}
             on:dragover={(e) => {
                 e.preventDefault();
                 handleDragOver(e);
             }}
-            on:dragenter={(e) => {
-                handleDragEnter(e);
-            }}
-        >
-            <textarea
-                bind:this={textareaRef}
-                bind:value={content}
-                on:keydown={handleKeydown}
-                on:input={handleWikiInput}
-                on:blur={closeWikiAutocomplete}
-                on:drop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleDrop(e);
-                }}
-                on:dragover={(e) => {
-                    e.preventDefault();
-                    handleDragOver(e);
-                }}
-                on:dragenter={(e) => {
-                    handleDragEnter(e);
-                }}
-                placeholder="Enter note or drag image here..."
-                disabled={isLoading}
-                spellcheck="false"
-            ></textarea>
-        </div>
+            on:dragenter={(e) => handleDragEnter(e)}
+        />
+
+        <CaptureEditor
+            bind:content
+            bind:textareaRef
+            {isLoading}
+            on:keydown={handleKeydown}
+            on:input={handleWikiInput}
+            on:blur={closeWikiAutocomplete}
+            on:drop={handleDrop}
+            on:dragover={handleDragOver}
+            on:dragenter={handleDragEnter}
+        />
     </div>
 
-    {#if appSettings.show_capture_action_bar}
-        <div class="action-bar">
-            <button
-                class="action-btn"
-                on:click={handleAppendToDaily}
-                disabled={isLoading}
-                title={appSettings.save_to_daily_shortcut}
-            >
-                Daily Note
-            </button>
-            <button
-                class="action-btn"
-                on:click={handleSaveAsNote}
-                disabled={isLoading}
-                title={appSettings.save_as_note_shortcut}
-            >
-                New Note
-            </button>
-            <button
-                class="action-btn"
-                on:click={openAppendPicker}
-                disabled={isLoading}
-                title={appSettings.append_to_note_shortcut}
-            >
-                Append
-            </button>
-        </div>
-    {/if}
+    <CaptureActionBar
+        show={appSettings.show_capture_action_bar}
+        {isLoading}
+        saveToDailyShortcut={appSettings.save_to_daily_shortcut}
+        saveAsNoteShortcut={appSettings.save_as_note_shortcut}
+        appendToNoteShortcut={appSettings.append_to_note_shortcut}
+        on:daily={handleAppendToDaily}
+        on:newNote={handleSaveAsNote}
+        on:append={openAppendPicker}
+    />
 
-    <div class="resize-handle"></div>
+    <CaptureResizeHandle />
 
-    {#if isDragging}
-        <div class="drop-overlay"></div>
-    {/if}
+    <CaptureDropOverlay show={isDragging} />
 
-    {#if statusMessage}
-        <div class="status-toast" class:error={statusType === "error"}>
-            {statusMessage}
-        </div>
-    {/if}
+    <CaptureStatus message={statusMessage} type={statusType} />
 
-    {#if wikiAutocompleteOpen && wikiAutocompleteMatches.length > 0}
-        {@const pos = getWikiDropdownPosition()}
-        <div
-            class="wikilink-picker-position"
-            style="left: {pos.left}px; top: {pos.top}px;"
-        >
-            <WikilinkPicker
-                notes={wikiAutocompleteMatches}
-                selectedIndex={wikiAutocompleteIndex}
-                showPaths={showNotePaths}
-                onSelect={(note) => insertWikilink(note)}
-                onHover={(index) => {
-                    wikiAutocompleteIndex = index;
-                }}
-            />
-        </div>
-    {/if}
+    <CaptureWikilinkOverlay
+        open={wikiAutocompleteOpen}
+        matches={wikiAutocompleteMatches}
+        selectedIndex={wikiAutocompleteIndex}
+        position={wikiAutocompletePosition}
+        showPaths={showNotePaths}
+        on:select={(event) => insertWikilink(event.detail)}
+        onHover={(index) => {
+            wikiAutocompleteIndex = index;
+        }}
+    />
 
     <AppendToPicker
         open={showAppendPicker}
@@ -1468,9 +1319,7 @@
         on:close={closeAppendPicker}
     />
 
-    {#if isLoading}
-        <div class="loading-indicator"></div>
-    {/if}
+    <CaptureLoadingIndicator active={isLoading} />
 </div>
 
 <style>
@@ -1530,46 +1379,22 @@
             0 2px 8px var(--shadow-sm);
     }
 
-    .accent-line {
-        height: 2px;
-        background: linear-gradient(
-            90deg,
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 70%, transparent),
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 35%, transparent),
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 70%, transparent)
-        );
-        background-size: 200% 100%;
-        animation: shimmer 3s linear infinite;
-    }
-
-    .accent-line,
-    .content-wrapper,
-    .status-toast,
-    .resize-handle {
+    .content-wrapper {
         transition:
             filter 0.12s ease,
             opacity 0.12s ease,
             transform 0.12s ease;
     }
 
-    .capture-container.append-picker-open .accent-line,
+    .capture-container.append-picker-open :global(.accent-line),
     .capture-container.append-picker-open .content-wrapper,
-    .capture-container.append-picker-open .action-bar,
-    .capture-container.append-picker-open .status-toast,
-    .capture-container.append-picker-open .resize-handle {
+    .capture-container.append-picker-open :global(.action-bar),
+    .capture-container.append-picker-open :global(.status-toast),
+    .capture-container.append-picker-open :global(.resize-handle) {
         filter: blur(4px) brightness(0.62);
         opacity: 0.56;
         transform: scale(0.997);
         pointer-events: none;
-    }
-
-    @keyframes shimmer {
-        0% {
-            background-position: 200% 0;
-        }
-        100% {
-            background-position: -200% 0;
-        }
     }
 
     .content-wrapper {
@@ -1579,307 +1404,8 @@
         overflow: hidden;
     }
 
-    .image-gallery {
-        display: flex;
-        gap: 8px;
-        padding: 12px 12px 8px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        flex-shrink: 0;
-    }
-
-    .image-gallery::-webkit-scrollbar {
-        height: 4px;
-    }
-
-    .image-gallery::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .image-gallery::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.15);
-        border-radius: 2px;
-    }
-
-    .image-preview {
-        position: relative;
-        flex-shrink: 0;
-        width: 80px;
-        height: 80px;
-        border-radius: 8px;
-        overflow: hidden;
-        background: rgba(0, 0, 0, 0.03);
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        transition: all 0.2s;
-    }
-
-    .image-preview:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-
-    .image-preview img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .remove-btn {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        border: none;
-        background: rgba(255, 59, 48, 0.9);
-        color: white;
-        font-size: 16px;
-        line-height: 1;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transition: opacity 0.2s;
-        padding: 0;
-    }
-
-    .image-preview:hover .remove-btn {
-        opacity: 1;
-    }
-
-    .remove-btn:hover {
-        background: rgba(255, 59, 48, 1);
-        transform: scale(1.1);
-    }
-
-    .image-name {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 4px;
-        background: rgba(0, 0, 0, 0.7);
-        color: white;
-        font-size: 9px;
-        text-align: center;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        opacity: 0;
-        transition: opacity 0.2s;
-    }
-
-    .image-preview:hover .image-name {
-        opacity: 1;
-    }
-
-    .content-area {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        padding: 12px 16px 16px;
-        overflow: hidden;
-    }
-
-    textarea {
-        flex: 1;
-        width: 100%;
-        border: none;
-        outline: none;
-        resize: none;
-        background: transparent;
-        font-family: inherit;
-        font-size: var(--app-font-size, 15px);
-        line-height: 1.6;
-        color: var(--app-text-color, #ffffff);
-        caret-color: var(--accent-color, #8b5cf6);
-    }
-
-    textarea::placeholder {
-        color: rgba(255, 255, 255, 0.4);
-    }
-
-    textarea:disabled {
+    .capture-container:hover :global(.resize-handle) {
         opacity: 0.6;
-    }
-
-    .action-bar {
-        display: flex;
-        gap: 6px;
-        padding: 4px 12px 6px;
-        flex-shrink: 0;
-        justify-content: center;
-    }
-
-    .action-btn {
-        padding: 5px 10px;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 999px;
-        background: transparent;
-        color: rgba(255, 255, 255, 0.72);
-        font-size: 11px;
-        font-weight: 500;
-        cursor: pointer;
-        transition:
-            border-color 0.15s ease,
-            color 0.15s ease,
-            background-color 0.15s ease,
-            opacity 0.15s ease;
-        letter-spacing: 0.2px;
-        line-height: 1;
-    }
-
-    .action-btn:hover:not(:disabled) {
-        color: rgba(255, 255, 255, 0.9);
-        border-color: rgba(255, 255, 255, 0.28);
-        background: rgba(255, 255, 255, 0.03);
-    }
-
-    .action-btn:active:not(:disabled) {
-        background: rgba(255, 255, 255, 0.06);
-        border-color: rgba(255, 255, 255, 0.32);
-    }
-
-    .action-btn:disabled {
-        opacity: 0.45;
-        cursor: default;
-    }
-
-    .resize-handle {
-        position: absolute;
-        bottom: 4px;
-        right: 4px;
-        width: 16px;
-        height: 16px;
-        cursor: nwse-resize;
-        opacity: 0.3;
-        transition: opacity 0.2s;
-    }
-
-    .resize-handle::before {
-        content: "";
-        position: absolute;
-        bottom: 0;
-        right: 0;
-        width: 12px;
-        height: 12px;
-        background:
-            linear-gradient(
-                135deg,
-                transparent 40%,
-                rgba(0, 0, 0, 0.2) 40%,
-                rgba(0, 0, 0, 0.2) 45%,
-                transparent 45%
-            ),
-            linear-gradient(
-                135deg,
-                transparent 50%,
-                rgba(0, 0, 0, 0.2) 50%,
-                rgba(0, 0, 0, 0.2) 55%,
-                transparent 55%
-            );
-        border-radius: 0 0 14px 0;
-    }
-
-    .capture-container:hover .resize-handle {
-        opacity: 0.6;
-    }
-
-    .drop-overlay {
-        position: absolute;
-        inset: 2px;
-        background: none;
-        border: 2px dashed rgba(255, 255, 255, 0.7);
-        border: 2px rgba(255, 255, 255, 0.7);
-        border-radius: 12px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        pointer-events: none;
-    }
-
-    .status-toast {
-        position: absolute;
-        bottom: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 8px 16px;
-        background: var(--success-bg);
-        -webkit-backdrop-filter: blur(20px);
-        backdrop-filter: blur(20px);
-        border: 0.5px solid var(--success-border);
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--success-color);
-        animation: fadeInUp 0.2s ease-out;
-        white-space: nowrap;
-        z-index: 100;
-    }
-
-    .status-toast.error {
-        background: var(--error-bg);
-        border-color: var(--error-border);
-        color: var(--error-color);
-    }
-
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateX(-50%) translateY(10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-    }
-
-    .loading-indicator {
-        position: absolute;
-        top: 2px;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: linear-gradient(
-            90deg,
-            transparent,
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 85%, transparent),
-            transparent
-        );
-        background-size: 200% 100%;
-        animation: loading 1s ease-in-out infinite;
-        z-index: 100;
-    }
-
-    @keyframes loading {
-        0% {
-            background-position: 200% 0;
-        }
-        100% {
-            background-position: -200% 0;
-        }
-    }
-
-    textarea::-webkit-scrollbar {
-        width: 6px;
-    }
-    textarea::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    textarea::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.12);
-        border-radius: 5px;
-    }
-
-    .wikilink-picker-position {
-        position: fixed;
-        z-index: 200;
-        min-width: 220px;
-        max-width: 320px;
     }
 
     .capture-container.demo-fake-bg {

@@ -4,6 +4,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::time::Duration;
 
+use crate::fs_util::atomic_write_text;
 use crate::log_safety::{redact_path, summarize_text_len};
 use crate::markdown_sections::{self, InsertPosition};
 use crate::settings::Settings;
@@ -19,7 +20,11 @@ fn generate_header(template: &str) -> String {
     generate_header_with_time(template, Local::now())
 }
 
-fn generate_header_with_time<Tz: chrono::TimeZone>(
+pub(crate) fn render_datetime_template(template: &str) -> String {
+    render_datetime_template_with_time(template, Local::now())
+}
+
+fn render_datetime_template_with_time<Tz: chrono::TimeZone>(
     template: &str,
     dt: chrono::DateTime<Tz>,
 ) -> String
@@ -66,7 +71,18 @@ where
             remaining = &remaining[ch.len_utf8()..];
         }
     }
+
     result
+}
+
+fn generate_header_with_time<Tz: chrono::TimeZone>(
+    template: &str,
+    dt: chrono::DateTime<Tz>,
+) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    render_datetime_template_with_time(template, dt)
 }
 
 pub fn build_daily_note_path(settings: &Settings) -> String {
@@ -175,53 +191,7 @@ pub fn save_note_at_path(
 }
 
 fn generate_filename_from_template(template: &str) -> String {
-    let now = Local::now();
-
-    // 12h-Zeitwerte vorbereiten
-    let hour_12 = now.format("%I").to_string();
-    let hour_12_nopad = if hour_12.starts_with('0') {
-        hour_12[1..].to_string()
-    } else {
-        hour_12.clone()
-    };
-    let ampm_lower = now.format("%P").to_string();
-    let ampm_upper = now.format("%p").to_string();
-
-    // Token -> Wert Zuordnung.
-    // Laengere Token zuerst, damit z.B. "hh" vor "h" matched.
-    // WICHTIG: Die Token-Namen selbst enthalten keine problematischen Zeichen,
-    // aber Nutzer sollten Doppelpunkte in Filename-Templates vermeiden
-    // (macOS erlaubt keine Doppelpunkte in Dateinamen).
-    let tokens: &[(&str, String)] = &[
-        ("YYYY", now.format("%Y").to_string()),
-        ("MM", now.format("%m").to_string()),
-        ("DD", now.format("%d").to_string()),
-        ("HH", now.format("%H").to_string()),
-        ("hh", hour_12),
-        ("mm", now.format("%M").to_string()),
-        ("ss", now.format("%S").to_string()),
-        ("h", hour_12_nopad),
-        ("a", ampm_lower),
-        ("A", ampm_upper),
-    ];
-
-    // Single-Pass: jedes Token wird nur im Original-Template erkannt,
-    // sodass eingesetzte Werte (z.B. "pm" enthaelt 'a') nie erneut ersetzt werden.
-    let mut result = String::with_capacity(template.len() * 2);
-    let mut remaining = template;
-    while !remaining.is_empty() {
-        if let Some((tok, val)) = tokens.iter().find(|(tok, _)| remaining.starts_with(tok)) {
-            result.push_str(val);
-            remaining = &remaining[tok.len()..];
-        } else {
-            // Safety: wir nehmen ein UTF-8-Zeichen, nicht nur ein Byte.
-            let ch = remaining.chars().next().unwrap();
-            result.push(ch);
-            remaining = &remaining[ch.len_utf8()..];
-        }
-    }
-
-    let mut filename = result;
+    let mut filename = render_datetime_template(template);
     if !filename.ends_with(".md") {
         filename.push_str(".md");
     }
@@ -318,6 +288,11 @@ pub async fn append_to_daily_note(
     if captured_text.trim().is_empty() {
         return Err("Nothing to append".to_string());
     }
+    if settings.daily_note_folder.trim().is_empty() {
+        return Err(
+            "Daily Note folder is not configured. Please set it in Settings.".to_string(),
+        );
+    }
 
     log::info!(
         "Appending to daily note (file={}, chars={})",
@@ -359,7 +334,8 @@ pub async fn append_to_daily_note(
         settings.daily_note_create_heading_if_missing,
     );
 
-    fs::write(file_path, &new_content).map_err(|e| format!("Cannot write to daily note: {}", e))?;
+    atomic_write_text(file_path, &new_content)
+        .map_err(|e| format!("Cannot write to daily note: {}", e))?;
 
     log::info!(
         "Successfully appended to daily note (file={})",
@@ -396,6 +372,7 @@ pub fn append_to_note(
     let entry = format!("{}\n{}\n", header, captured_text);
 
     let mut file = OpenOptions::new()
+        .read(true)
         .write(true)
         .append(true)
         .open(file_path)
@@ -765,6 +742,7 @@ mod tests {
         let _ = std::fs::remove_file(&tmp); // clean slate
 
         let settings = Settings {
+            daily_note_folder: "Journal/".to_string(),
             daily_note_create_if_missing: false,
             ..Default::default()
         };
@@ -801,6 +779,7 @@ mod tests {
         std::fs::write(&file_path, initial).unwrap();
 
         let settings = Settings {
+            daily_note_folder: "Journal/".to_string(),
             daily_note_target_heading: "### Note".to_string(),
             daily_note_insert_position: "bottom".to_string(),
             daily_note_create_heading_if_missing: false,

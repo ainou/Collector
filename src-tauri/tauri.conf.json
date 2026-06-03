@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Collector",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "identifier": "com.collector.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -36,7 +36,8 @@
             "core:window:allow-start-dragging",
             "core:window:allow-unminimize",
             "core:webview:default",
-            "dialog:allow-open"
+            "dialog:allow-open",
+            "dialog:allow-confirm"
           ]
         }
       ]

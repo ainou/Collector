@@ -189,12 +189,29 @@ impl EdgeDetector {
                 )
             };
 
+            // Determine which edge each target uses
+            let reader_on_right = settings.reader_edge_side == "right";
+            let capture_on_right = settings.edge_side == "right";
+
+            let at_reader_edge = if reader_on_right {
+                at_right_edge
+            } else {
+                at_left_edge
+            };
+            let at_capture_edge = if capture_on_right {
+                at_right_edge
+            } else {
+                at_left_edge
+            };
+
+            // Priority when both target the same edge: Reader checked first, Capture second.
+            // If both are enabled on the same edge, only Reader triggers at that edge.
             let can_show_reader = settings.reader_edge_enabled
-                && at_left_edge
+                && at_reader_edge
                 && !*self.is_reader_open.read().await
                 && !self.is_reader_in_cooldown().await;
             let can_show_capture = settings.edge_detection_enabled
-                && at_right_edge
+                && at_capture_edge
                 && !*self.is_capture_open.read().await
                 && !self.is_capture_in_cooldown().await;
 
@@ -211,7 +228,11 @@ impl EdgeDetector {
                     trigger_start = Some(Instant::now());
                     trigger_target = Some(target);
                 } else if trigger_start.unwrap().elapsed() >= target.trigger_delay(&settings) {
-                    if !modifiers_match(&settings.edge_modifier_keys) {
+                    let required_modifiers = match target {
+                        EdgeTarget::Reader => &settings.reader_edge_modifier_keys,
+                        EdgeTarget::Capture => &settings.edge_modifier_keys,
+                    };
+                    if !modifiers_match(required_modifiers) {
                         trigger_start = None;
                         trigger_target = None;
                         continue;
@@ -223,6 +244,10 @@ impl EdgeDetector {
                         continue;
                     }
 
+                    if target.event_name() == "show_capture" {
+                        // Reset state before showing the capture window via edge detection
+                        let _ = app.emit("reset_capture", ());
+                    }
                     if let Err(error) = app.emit(target.event_name(), ()) {
                         log::warn!(
                             "Failed to emit edge event {}: {}",

@@ -1,5 +1,6 @@
 <script>
     import Section from "./Section.svelte";
+    import Checkbox from "./Checkbox.svelte";
 
     export let settings;
     export let showStatus;
@@ -58,9 +59,9 @@
                 type="text"
                 id="daily_note_folder"
                 bind:value={settings.daily_note_folder}
-                placeholder="Journal/Notes/"
+                placeholder="e.g. Daily Notes/"
             />
-            <small>Relative path in vault for daily notes</small>
+            <small>Relative path in vault for daily notes. Must match your Obsidian Daily Notes folder path.</small>
         </div>
         <div class="field">
             <label for="daily_note_format">Daily Note Format</label>
@@ -74,6 +75,38 @@
                 Filename format (e.g. YYYY-MM-DD). Supports: YYYY, MM, DD
             </small>
         </div>
+
+        <div class="field">
+            <Checkbox bind:checked={settings.daily_note_create_if_missing}>
+                Create daily note if it does not exist
+            </Checkbox>
+            {#if settings.daily_note_create_if_missing}
+                <small>
+                    Requires the Obsidian Advanced URI plugin. Collector opens
+                    Obsidian to create the daily note, then appends the capture
+                    to the configured section.
+                </small>
+            {/if}
+        </div>
+
+        {#if settings.daily_note_create_if_missing}
+            <div class="field">
+                <label for="daily_note_create_timeout_ms">Wait timeout (ms)</label>
+                <input
+                    type="number"
+                    id="daily_note_create_timeout_ms"
+                    min="1000"
+                    max="60000"
+                    step="100"
+                    bind:value={settings.daily_note_create_timeout_ms}
+                />
+                <small
+                    >How long Collector waits for Obsidian to create the daily
+                    note before giving up (1000–60000 ms).</small
+                >
+            </div>
+        {/if}
+
         <div class="field">
             <label for="daily_note_target_heading">Target Heading</label>
             <input
@@ -85,86 +118,43 @@
             <small>Leave empty to append to the end of the daily note.</small>
         </div>
 
-        <div class="field">
-            <label for="daily_note_insert_position">Insert Position</label>
-            <select
-                id="daily_note_insert_position"
-                bind:value={settings.daily_note_insert_position}
-            >
-                <option value="bottom">Bottom of section</option>
-                <option value="top">Top of section</option>
-            </select>
-        </div>
+        {#if settings.daily_note_target_heading?.trim()}
+            <div class="field">
+                <label for="daily_note_insert_position"
+                    >Insert Position in Target Header Area</label
+                >
+                <select
+                    id="daily_note_insert_position"
+                    bind:value={settings.daily_note_insert_position}
+                >
+                    <option value="bottom">Bottom of section</option>
+                    <option value="top">Top of section</option>
+                </select>
+            </div>
+        {/if}
 
-        <div class="field">
-            <label class="checkbox" for="daily_note_create_heading_if_missing">
-                <input
-                    type="checkbox"
-                    id="daily_note_create_heading_if_missing"
-                    bind:checked={settings.daily_note_create_heading_if_missing}
-                />
-                <span>Create heading if it does not exist</span>
-            </label>
-        </div>
-
-        <div class="field">
-            <label class="checkbox" for="daily_note_create_if_missing">
-                <input
-                    type="checkbox"
-                    id="daily_note_create_if_missing"
-                    bind:checked={settings.daily_note_create_if_missing}
-                />
-                <span>Create daily note if it does not exist</span>
-            </label>
-            {#if settings.daily_note_create_if_missing}
-                <small>
-                    Requires the Obsidian Advanced URI plugin. Collector opens
-                    Obsidian to create the daily note, then appends the capture
-                    to the configured section.
-                </small>
-            {/if}
-        </div>
-
-        <div class="field">
-            <label for="daily_note_create_timeout_ms">Wait timeout (ms)</label>
-            <input
-                type="number"
-                id="daily_note_create_timeout_ms"
-                min="1000"
-                max="60000"
-                step="100"
-                bind:value={settings.daily_note_create_timeout_ms}
-            />
-            <small
-                >How long Collector waits for Obsidian to create the daily note
-                before giving up (1000–60000 ms).</small
-            >
-        </div>
+        {#if settings.daily_note_target_heading?.trim()}
+            <div class="field">
+                <Checkbox bind:checked={settings.daily_note_create_heading_if_missing}>
+                    Create heading if it does not exist
+                </Checkbox>
+            </div>
+        {/if}
     </Section>
 
     <Section title="Buttons">
         <div class="field">
-            <label class="checkbox" for="show_capture_action_bar">
-                <input
-                    type="checkbox"
-                    id="show_capture_action_bar"
-                    bind:checked={settings.show_capture_action_bar}
-                />
-                <span>Show action buttons</span>
-            </label>
+            <Checkbox bind:checked={settings.show_capture_action_bar}>
+                Show action buttons
+            </Checkbox>
         </div>
     </Section>
 
     <Section title="Pickers">
         <div class="field">
-            <label class="checkbox" for="show_note_paths">
-                <input
-                    type="checkbox"
-                    id="show_note_paths"
-                    bind:checked={settings.show_note_paths}
-                />
-                <span>Show file paths in note pickers</span>
-            </label>
+            <Checkbox bind:checked={settings.show_note_paths}>
+                Show file paths in note pickers
+            </Checkbox>
             <small>
                 Displays the vault-relative path below each note name in the
                 Command Palette, Append Picker, and Wikilink autocomplete

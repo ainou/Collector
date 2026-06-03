@@ -86,6 +86,10 @@ impl ShortcutManager {
                             }
 
                             warn_if_failed(
+                                app_handle2.emit("reset_capture", ()),
+                                "Failed to emit reset_capture",
+                            );
+                            warn_if_failed(
                                 app_handle2.emit("show_capture", ()),
                                 "Failed to emit show_capture",
                             );
@@ -178,6 +182,7 @@ impl ShortcutManager {
             .on_shortcut(shortcut.clone(), move |_app, _shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     let app_handle2 = app_handle.clone();
+
                     tauri::async_runtime::spawn(async move {
                         let selected = tauri::async_runtime::spawn_blocking(
                             crate::selected_text::capture_selected_text,
@@ -202,7 +207,7 @@ impl ShortcutManager {
                             warn_if_failed(
                                 app_handle2.emit(
                                     "capture_text_failed",
-                                    "Accessibility permission required. Go to System Settings → Privacy & Security → Accessibility and enable Collector.",
+                                    "No text was captured. Select text in another app and try again.",
                                 ),
                                 "Failed to emit capture_text_failed",
                             );

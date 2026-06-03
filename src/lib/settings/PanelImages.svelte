@@ -5,6 +5,7 @@
 
     export let settings;
     export let showStatus;
+    export let onChange = () => {};
 
     function toRelativeVaultDirectoryPath(path = "") {
         const normalizedPath = normalizeComparablePath(path.trim());
@@ -76,6 +77,7 @@
 
             settings.screenshot_path = relative;
             settings = { ...settings };
+            onChange();
         }
     }
 </script>
@@ -108,7 +110,7 @@
                 bind:value={settings.image_filename}
                 placeholder="screenshot-YYYY-MM-DD-HHmmss"
             />
-            <small>Supports: YYYY, MM, DD, HH, mm, ss</small>
+            <small>Supports: YYYY, MM, DD, HH (24h), hh / h (12h), mm, ss, A / a</small>
         </div>
     </Section>
 
@@ -120,7 +122,7 @@
                 id="compression_max_kb"
                 bind:value={settings.compression_max_kb}
                 min="50"
-                max="1000"
+                max="2000"
                 step="50"
             />
             <small>Images will be compressed to this size</small>

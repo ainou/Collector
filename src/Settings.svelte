@@ -1,6 +1,7 @@
 <script>
     import { invoke } from "@tauri-apps/api/core";
     import { onMount, onDestroy } from "svelte";
+    import { confirm as dialogConfirm } from "@tauri-apps/plugin-dialog";
     import PanelActivation from "./lib/settings/PanelActivation.svelte";
     import PanelCapture from "./lib/settings/PanelCapture.svelte";
     import PanelImages from "./lib/settings/PanelImages.svelte";
@@ -13,6 +14,7 @@
     import { defaultSettings } from "./lib/stores.js";
 
     let settings = { ...defaultSettings };
+    let vaultNotes = [];
     let isLoaded = false;
     let statusMessage = "";
     let statusType = "";
@@ -22,50 +24,81 @@
         { id: "vault", label: "Vault" },
         { id: "capture", label: "Capture" },
         { id: "reader", label: "Reader" },
-        { id: "look", label: "Look && Feel" },
+        { id: "look", label: "Look & Feel" },
         { id: "shortcuts", label: "Shortcuts" },
         { id: "activation", label: "Activation" },
         { id: "images", label: "Images" },
     ];
 
-    // ── theme (follows app background/text colors) ────────
+    // ── theme (system dark/light) ─────────────────────────
 
-    $: bgColor = settings.background_color || "#f2f2f2";
-    $: textColor = settings.text_color || "#1a1a1a";
+    let prefersDark = false;
 
-    $: isLight = (() => {
-        const hex = bgColor.replace("#", "");
-        if (hex.length < 6) return true;
-        const r = parseInt(hex.substr(0, 2), 16);
-        const g = parseInt(hex.substr(2, 2), 16);
-        const b = parseInt(hex.substr(4, 2), 16);
-        return (r * 299 + g * 587 + b * 114) / 1000 > 128;
-    })();
+    function updateTheme(mq) {
+        prefersDark = mq.matches;
+    }
 
-    $: t = {
-        bg: isLight ? bgColor : `color-mix(in srgb, ${bgColor} 92%, white)`,
-        surface: isLight
-            ? "rgba(255,255,255,0.95)"
-            : `color-mix(in srgb, ${bgColor} 75%, white)`,
-        text: textColor,
-        textSecondary: isLight ? "#6b7280" : "rgba(255,255,255,0.55)",
-        inputBg: isLight ? "#ffffff" : `color-mix(in srgb, ${bgColor} 60%, white)`,
-        border: isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)",
-        inputBorder: isLight ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.15)",
-        navText: isLight ? "#374151" : "rgba(255,255,255,0.7)",
-        navLabel: isLight ? "#111827" : "rgba(255,255,255,0.9)",
-        sectionTitle: isLight ? "#9ca3af" : "rgba(255,255,255,0.45)",
-        fieldLabel: isLight ? "#111827" : "rgba(255,255,255,0.85)",
-        btnBg: isLight ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.10)",
-        btnText: isLight ? "#111827" : "rgba(255,255,255,0.85)",
-        indicator: isLight ? "#6b7280" : "rgba(255,255,255,0.5)",
+    onMount(() => {
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        updateTheme(mq);
+        mq.addEventListener("change", updateTheme);
+    });
+
+    const lightTheme = {
+        bg: "#f2f2f2",
+        surface: "rgba(255,255,255,0.95)",
+        text: "#1a1a1a",
+        textSecondary: "#6b7280",
+        inputBg: "#ffffff",
+        border: "rgba(0,0,0,0.08)",
+        inputBorder: "rgba(0,0,0,0.10)",
+        navText: "#374151",
+        navLabel: "#111827",
+        sectionTitle: "#9ca3af",
+        fieldLabel: "#111827",
+        btnBg: "rgba(0,0,0,0.07)",
+        btnText: "#111827",
+        indicator: "#6b7280",
     };
+
+    const darkTheme = {
+        bg: "#1e1e2e",
+        surface: "rgba(255,255,255,0.06)",
+        text: "#e4e4e7",
+        textSecondary: "rgba(255,255,255,0.5)",
+        inputBg: "rgba(255,255,255,0.08)",
+        border: "rgba(255,255,255,0.08)",
+        inputBorder: "rgba(255,255,255,0.12)",
+        navText: "rgba(255,255,255,0.65)",
+        navLabel: "rgba(255,255,255,0.9)",
+        sectionTitle: "rgba(255,255,255,0.4)",
+        fieldLabel: "rgba(255,255,255,0.8)",
+        btnBg: "rgba(255,255,255,0.08)",
+        btnText: "rgba(255,255,255,0.85)",
+        indicator: "rgba(255,255,255,0.45)",
+    };
+
+    $: t = prefersDark ? darkTheme : lightTheme;
 
     // ── auto-save ──────────────────────────────────────────
 
-    let lastSavedJson = "";
-    let pendingSave;
-    let autoSaveInterval;
+    let saveTimer;
+
+    function scheduleAutoSave() {
+        if (!isLoaded) return;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            saveTimer = null;
+            void performSave();
+        }, 400);
+    }
+
+    function flushPendingSave() {
+        if (!saveTimer) return;
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        void performSave();
+    }
 
     async function performSave() {
         try {
@@ -82,7 +115,6 @@
 
             await invoke("save_settings", { newSettings: payload });
             settings = { ...payload };
-            lastSavedJson = JSON.stringify(payload);
             showStatus("Saved", "success");
         } catch (e) {
             console.error("Auto-save failed:", e);
@@ -101,31 +133,25 @@
                 pinned_notes: normalizePinnedNotes(loaded.pinned_notes),
             };
             settings = normalized;
-            lastSavedJson = JSON.stringify(normalized);
-            isLoaded = true;
         } catch (e) {
             console.error("Failed to load settings:", e);
             showStatus("Failed to load settings", "error");
+        } finally {
+            isLoaded = true;
         }
     }
 
     onMount(async () => {
         await loadSettings();
-
-        // Poll for deep changes (bind:value mutates in place)
-        autoSaveInterval = setInterval(() => {
-            if (!isLoaded) return;
-            const current = JSON.stringify(settings);
-            if (current !== lastSavedJson) {
-                clearTimeout(pendingSave);
-                pendingSave = setTimeout(performSave, 300);
-            }
-        }, 200);
+        try {
+            vaultNotes = await invoke("list_vault_notes");
+        } catch (e) {
+            console.error("Failed to load vault notes:", e);
+        }
     });
 
     onDestroy(() => {
-        clearInterval(autoSaveInterval);
-        clearTimeout(pendingSave);
+        flushPendingSave();
     });
 
     // ── ui helpers ─────────────────────────────────────────
@@ -142,6 +168,7 @@
     async function handleClose() {
         statusMessage = "";
         statusType = "";
+        flushPendingSave();
         try {
             await invoke("close_settings");
         } catch (e) {
@@ -149,10 +176,21 @@
         }
     }
 
-    function handleReset() {
-        if (confirm("Reset all settings to default?")) {
-            settings = { ...defaultSettings };
-        }
+    async function handleReset() {
+        const confirmed = await dialogConfirm(
+            "Reset all settings to defaults? Your vault connection will be kept.",
+            { title: "Reset settings", kind: "warning" }
+        );
+        if (!confirmed) return;
+
+        const vaultPath = settings.vault_path || defaultSettings.vault_path;
+        const vaultName = settings.vault_name || defaultSettings.vault_name;
+        settings = {
+            ...defaultSettings,
+            vault_path: vaultPath,
+            vault_name: vaultName,
+        };
+        await performSave();
     }
 </script>
 
@@ -177,9 +215,15 @@
 >
     <header>
         <h1>Settings</h1>
-        <span class="save-indicator" class:visible={statusMessage}>
-            {statusMessage}
-        </span>
+        {#if statusMessage}
+            <span
+                class="save-indicator"
+                class:visible={statusMessage}
+                class:error={statusType === "error"}
+            >
+                {statusMessage}
+            </span>
+        {/if}
     </header>
 
     <main>
@@ -199,21 +243,21 @@
                 </nav>
             </aside>
 
-            <div class="settings-content">
+            <div class="settings-content" on:input={scheduleAutoSave}>
                 {#if activePanel === "vault"}
-                    <PanelVault bind:settings {showStatus} />
+                    <PanelVault bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "capture"}
                     <PanelCapture bind:settings {showStatus} />
                 {:else if activePanel === "reader"}
-                    <PanelReader bind:settings {showStatus} />
+                    <PanelReader bind:settings {showStatus} {vaultNotes} onChange={scheduleAutoSave} />
                 {:else if activePanel === "look"}
                     <PanelLook bind:settings {showStatus} />
                 {:else if activePanel === "shortcuts"}
-                    <PanelShortcuts bind:settings {showStatus} />
+                    <PanelShortcuts bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "activation"}
-                    <PanelActivation bind:settings {showStatus} />
+                    <PanelActivation bind:settings onChange={scheduleAutoSave} />
                 {:else if activePanel === "images"}
-                    <PanelImages bind:settings {showStatus} />
+                    <PanelImages bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {/if}
             </div>
         </div>
@@ -257,8 +301,11 @@
 
     .save-indicator {
         font-size: 11px;
-        font-weight: 500;
-        color: var(--settings-indicator);
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 5px;
+        color: #065f46;
+        background: #d1fae5;
         opacity: 0;
         transition: opacity 0.2s ease;
         letter-spacing: 0.1px;
@@ -266,6 +313,11 @@
 
     .save-indicator.visible {
         opacity: 1;
+    }
+
+    .save-indicator.error {
+        color: #991b1b;
+        background: #fecaca;
     }
 
     main {
@@ -313,15 +365,15 @@
     }
 
     .nav-item:hover {
-        background: color-mix(in srgb, var(--settings-text) 8%, transparent);
+        background: rgba(128, 128, 128, 0.08);
     }
 
     .nav-item.active {
-        background: color-mix(in srgb, var(--settings-text) 12%, transparent);
+        background: rgba(128, 128, 128, 0.12);
     }
 
     .nav-item.active:hover {
-        background: color-mix(in srgb, var(--settings-text) 12%, transparent);
+        background: rgba(128, 128, 128, 0.12);
     }
 
     .nav-item-label {
@@ -376,7 +428,6 @@
 
     :global(input[type="text"]),
     :global(input[type="number"]),
-    :global(select),
     :global(textarea) {
         width: 100%;
         padding: 9px 12px;
@@ -387,6 +438,40 @@
         color: var(--settings-text);
         transition: all 0.2s ease;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+    }
+
+    :global(input[type="number"]) {
+        -moz-appearance: textfield;
+    }
+
+    :global(input[type="number"]::-webkit-inner-spin-button),
+    :global(input[type="number"]::-webkit-outer-spin-button) {
+        -webkit-appearance: none;
+        appearance: none;
+        display: none;
+    }
+
+    :global(select) {
+        display: block;
+        width: 100%;
+        padding: 9px 28px 9px 12px;
+        border: 1.5px solid var(--settings-input-border);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--settings-input-bg);
+        color: var(--settings-text);
+        transition: all 0.2s ease;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+        min-height: 36px;
+        box-sizing: border-box;
+        -moz-appearance: none;
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 10px 6px;
+        cursor: pointer;
     }
 
     :global(textarea) {
@@ -401,7 +486,7 @@
     :global(select:focus),
     :global(textarea:focus) {
         outline: none;
-        background: color-mix(in srgb, var(--settings-input-bg) 98%, var(--settings-accent));
+        background: rgba(139, 92, 246, 0.04);
     }
 
     :global(.section-description) {
@@ -409,14 +494,6 @@
         color: #6b7280;
         font-size: 13px;
         line-height: 1.45;
-    }
-
-    :global(.checkbox) {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        font-weight: normal;
     }
 
     footer {
@@ -451,7 +528,7 @@
     }
 
     :global(button.secondary:hover) {
-        background: color-mix(in srgb, var(--settings-btn-bg) 80%, var(--settings-text));
+        background: rgba(128, 128, 128, 0.18);
     }
 
     :global(.path-picker) {
@@ -463,7 +540,7 @@
         flex: 1;
         font-family: "SF Mono", Menlo, Monaco, monospace;
         font-size: 12px;
-        background: #f9f9f9;
+        background: var(--settings-input-bg);
     }
 
     :global(.path-picker button) {
