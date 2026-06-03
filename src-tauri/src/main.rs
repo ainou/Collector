@@ -895,6 +895,7 @@ fn show_capture_window(app: &AppHandle, settings: &Settings) {
         );
         warn_if_failed(window.show(), "Failed to show capture window");
         warn_if_failed(window.set_focus(), "Failed to focus capture window");
+        warn_if_failed(app.emit("reset_capture", ()), "Failed to emit reset_capture");
         warn_if_failed(app.emit("show_capture", ()), "Failed to emit show_capture");
     }
 }

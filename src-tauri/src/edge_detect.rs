@@ -244,6 +244,10 @@ impl EdgeDetector {
                         continue;
                     }
 
+                    if target.event_name() == "show_capture" {
+                        // Reset state before showing the capture window via edge detection
+                        let _ = app.emit("reset_capture", ());
+                    }
                     if let Err(error) = app.emit(target.event_name(), ()) {
                         log::warn!(
                             "Failed to emit edge event {}: {}",

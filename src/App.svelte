@@ -54,6 +54,7 @@
     let appendPickerHeadingIndex = 0;
     let appendPickerInputRef;
     let uploadedImages = [];
+    let unlistenReset;
     let unlistenShow;
     let unlistenSettingsChanged;
     let unlistenDragDrop;
@@ -215,20 +216,35 @@
     }
 
     async function setupCaptureWindowListeners() {
-        unlistenShow = await listen("show_capture", () => {
+        // reset_capture: clear all capture state for a fresh start.
+        // Emitted before show_capture when the user wants a clean slate
+        // (global shortcut, edge detection, tray).
+        // NOT emitted by capture-text (Cmd+Shift+C) — that must append.
+        unlistenReset = await listen("reset_capture", () => {
             freeBlobUrls();
             resetCaptureState();
             statusMessage = "";
             closeAppendPicker();
-            // Required: after the native Tauri show event, macOS needs a short delay
-            // before the textarea reliably accepts focus.
+        });
+
+        unlistenShow = await listen("show_capture", () => {
+            // Just show and focus — no reset, so existing content survives.
             setTimeout(() => textareaRef?.focus(), 50);
         });
 
         await listen("insert_capture_text", (event) => {
             const text = typeof event.payload === "string" ? event.payload : "";
             if (!text.trim()) return;
-            content = text;
+            // Append captured text to existing content instead of replacing it.
+            // If content is empty, set directly; otherwise add spacing then append.
+            if (!content.trim()) {
+                content = text;
+            } else {
+                // Add spacing: if content doesn't end with a blank line, insert two newlines.
+                // If it already ends with a blank line, insert one newline.
+                const endsWithBlank = /\n\s*\n$/.test(content);
+                content = content + (endsWithBlank ? "\n" : "\n\n") + text;
+            }
             // Required: after the native Tauri insert event, macOS needs a short delay
             // before the textarea reliably accepts focus.
             setTimeout(() => textareaRef?.focus(), 50);
@@ -397,6 +413,7 @@
     });
 
     onDestroy(() => {
+        unlistenReset?.();
         unlistenShow?.();
         unlistenSettingsChanged?.();
         unlistenDragDrop?.();
