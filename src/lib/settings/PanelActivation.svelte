@@ -84,6 +84,17 @@
             </label>
             <small>Panels open when moving mouse to screen edges</small>
         </div>
+        <div class="field">
+            <label for="edge_side">Note Window Edge</label>
+            <select
+                id="edge_side"
+                bind:value={settings.edge_side}
+            >
+                <option value="right">Right side</option>
+                <option value="left">Left side</option>
+            </select>
+            <small>Which screen edge shows the note capture window</small>
+        </div>
     </Section>
 
     <Section title="Open Delays">
@@ -124,6 +135,15 @@
 
             <div class="delay-card">
                 <div class="delay-card-title">Reader Window</div>
+                <div class="field" style="margin-bottom: 8px;">
+                    <label class="checkbox compact-checkbox">
+                        <input
+                            type="checkbox"
+                            bind:checked={settings.reader_edge_enabled}
+                        />
+                        Edge Detection enabled
+                    </label>
+                </div>
                 <div class="delay-toggle-row">
                     <label class="checkbox compact-checkbox">
                         <input
