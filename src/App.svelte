@@ -56,6 +56,9 @@
     let uploadedImages = [];
     let unlistenReset;
     let unlistenShow;
+    let unlistenInsertCaptureText;
+    let unlistenCaptureTextFailed;
+    let unlistenSaveAsNote;
     let unlistenSettingsChanged;
     let unlistenDragDrop;
     let isTauri = false;
@@ -65,6 +68,7 @@
     let wikiAutocompleteQuery = "";
     let wikiAutocompleteIndex = 0;
     let wikiAutocompleteMatches = [];
+    let wikiAutocompletePosition = { left: 0, top: 0 };
     let wikiAnchorPos = 0;
     let globalDragLeave;
     let globalDrop;
@@ -232,7 +236,7 @@
             setTimeout(() => textareaRef?.focus(), 50);
         });
 
-        await listen("insert_capture_text", (event) => {
+        unlistenInsertCaptureText = await listen("insert_capture_text", (event) => {
             const text = typeof event.payload === "string" ? event.payload : "";
             if (!text.trim()) return;
             // Append captured text to existing content instead of replacing it.
@@ -250,7 +254,7 @@
             setTimeout(() => textareaRef?.focus(), 50);
         });
 
-        await listen("capture_text_failed", (event) => {
+        unlistenCaptureTextFailed = await listen("capture_text_failed", (event) => {
             const msg =
                 typeof event.payload === "string"
                     ? event.payload
@@ -258,7 +262,7 @@
             showStatus("✗ " + msg, "error");
         });
 
-        await listen("save_as_note", () => {
+        unlistenSaveAsNote = await listen("save_as_note", () => {
             handleSaveAsNote();
         });
     }
@@ -415,6 +419,9 @@
     onDestroy(() => {
         unlistenReset?.();
         unlistenShow?.();
+        unlistenInsertCaptureText?.();
+        unlistenCaptureTextFailed?.();
+        unlistenSaveAsNote?.();
         unlistenSettingsChanged?.();
         unlistenDragDrop?.();
 
@@ -672,9 +679,13 @@
     function openWikiAutocomplete(trigger, matches) {
         wikiAutocompleteQuery = trigger.query;
         wikiAutocompleteMatches = matches;
-        wikiAutocompleteOpen = matches.length > 0;
         wikiAutocompleteIndex = 0;
         wikiAnchorPos = trigger.triggerIndex;
+        wikiAutocompletePosition = getWikiDropdownPosition(
+            trigger.triggerIndex,
+            textareaRef?.selectionStart ?? trigger.triggerIndex,
+        );
+        wikiAutocompleteOpen = matches.length > 0;
     }
 
     function resetWikiAutocomplete() {
@@ -682,6 +693,7 @@
         wikiAutocompleteQuery = "";
         wikiAutocompleteMatches = [];
         wikiAutocompleteIndex = 0;
+        wikiAutocompletePosition = { left: 0, top: 0 };
         wikiAnchorPos = 0;
     }
 
@@ -727,27 +739,92 @@
         closeWikiAutocomplete();
     }
 
-    function getWikiDropdownPosition() {
+    function getTextareaPosition(textarea, position) {
+        const rect = textarea.getBoundingClientRect();
+        const style = getComputedStyle(textarea);
+        const mirror = document.createElement("div");
+        const marker = document.createElement("span");
+        const copyStyles = [
+            "boxSizing",
+            "borderTopWidth",
+            "borderRightWidth",
+            "borderBottomWidth",
+            "borderLeftWidth",
+            "fontFamily",
+            "fontSize",
+            "fontStyle",
+            "fontVariant",
+            "fontWeight",
+            "letterSpacing",
+            "lineHeight",
+            "paddingTop",
+            "paddingRight",
+            "paddingBottom",
+            "paddingLeft",
+            "tabSize",
+            "textIndent",
+            "textTransform",
+            "wordBreak",
+            "wordSpacing",
+        ];
+
+        copyStyles.forEach((property) => {
+            mirror.style[property] = style[property];
+        });
+
+        mirror.style.position = "absolute";
+        mirror.style.visibility = "hidden";
+        mirror.style.pointerEvents = "none";
+        mirror.style.whiteSpace = "pre-wrap";
+        mirror.style.wordWrap = "break-word";
+        mirror.style.overflowWrap = "break-word";
+        mirror.style.overflow = "hidden";
+        mirror.style.width = `${textarea.offsetWidth}px`;
+        mirror.style.top = "0";
+        mirror.style.left = "-9999px";
+
+        const textBefore = textarea.value.substring(0, position);
+        mirror.textContent = textBefore.endsWith("\n")
+            ? `${textBefore} `
+            : textBefore;
+        marker.textContent = ".";
+        mirror.appendChild(marker);
+        document.body.appendChild(mirror);
+
+        try {
+            const lineHeight = parseFloat(style.lineHeight) || 24;
+
+            return {
+                left: rect.left + marker.offsetLeft - textarea.scrollLeft,
+                top: rect.top + marker.offsetTop - textarea.scrollTop,
+                bottom:
+                    rect.top +
+                    marker.offsetTop -
+                    textarea.scrollTop +
+                    lineHeight,
+            };
+        } finally {
+            mirror.remove();
+        }
+    }
+
+    function clampWikiDropdownLeft(left) {
+        const margin = 12;
+        const pickerWidth = Math.min(320, window.innerWidth - margin * 2);
+        const maxLeft = window.innerWidth - pickerWidth - margin;
+
+        return Math.max(margin, Math.min(left, maxLeft));
+    }
+
+    function getWikiDropdownPosition(anchorPosition, cursorPosition) {
         if (!textareaRef) return { left: 0, top: 0 };
 
-        const taRect = textareaRef.getBoundingClientRect();
-        const style = getComputedStyle(textareaRef);
-        const lineHeight = parseFloat(style.lineHeight) || 24;
-        const paddingTop = parseFloat(style.paddingTop) || 12;
-        const paddingLeft = parseFloat(style.paddingLeft) || 16;
-
-        // Find which line the [[ anchor is on
-        const textBefore = textareaRef.value.substring(0, wikiAnchorPos);
-        const lineNumber = textBefore.split("\n").length; // 1-indexed
+        const anchorRect = getTextareaPosition(textareaRef, anchorPosition);
+        const caretRect = getTextareaPosition(textareaRef, cursorPosition);
 
         return {
-            left: taRect.left + paddingLeft,
-            top:
-                taRect.top +
-                paddingTop +
-                (lineNumber - 1) * lineHeight -
-                textareaRef.scrollTop +
-                lineHeight,
+            left: clampWikiDropdownLeft(anchorRect.left),
+            top: caretRect.bottom + 6,
         };
     }
 
@@ -1200,7 +1277,7 @@
         open={wikiAutocompleteOpen}
         matches={wikiAutocompleteMatches}
         selectedIndex={wikiAutocompleteIndex}
-        position={getWikiDropdownPosition()}
+        position={wikiAutocompletePosition}
         showPaths={showNotePaths}
         on:select={(event) => insertWikilink(event.detail)}
         onHover={(index) => {

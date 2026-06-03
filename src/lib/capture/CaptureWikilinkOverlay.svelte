@@ -42,7 +42,6 @@
   .wikilink-picker-position {
     position: fixed;
     z-index: 200;
-    min-width: 220px;
-    max-width: 320px;
+    width: min(320px, calc(100vw - 24px));
   }
 </style>
