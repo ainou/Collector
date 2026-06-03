@@ -1,5 +1,5 @@
 <script>
-    const ENABLE_DEMO_FAKE_BG = true; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
+    const ENABLE_DEMO_FAKE_BG = false; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
     const DEMO_FAKE_BG = import.meta.env.DEV && ENABLE_DEMO_FAKE_BG;
 
     import { invoke } from "@tauri-apps/api/core";
@@ -7,7 +7,7 @@
     import { onMount, onDestroy, tick } from "svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import AppendToPicker from "./lib/reader/AppendToPicker.svelte";
-    import WikilinkPicker from "./lib/WikilinkPicker.svelte";
+    import CaptureWikilinkOverlay from "./lib/capture/CaptureWikilinkOverlay.svelte";
     import CaptureActionBar from "./lib/capture/CaptureActionBar.svelte";
     import CaptureStatus from "./lib/capture/CaptureStatus.svelte";
     import CaptureLoadingIndicator from "./lib/capture/CaptureLoadingIndicator.svelte";
@@ -27,6 +27,10 @@
         getVaultNotePath,
         matchesShortcut,
     } from "./lib/capture/capture-utils.js";
+    import {
+        findWikiTrigger,
+        computeWikilinkInsertion,
+    } from "./lib/capture/wiki-utils.js";
     import {
         appendToDailyNoteAction,
         saveAsNoteAction,
@@ -103,8 +107,6 @@
         }
     })();
 
-
-
     function applyColorSettings(settings = appSettings) {
         const root = document.documentElement;
         root.style.setProperty(
@@ -120,16 +122,6 @@
             settings.external_link_color ?? "#60a5fa",
         );
     }
-
-
-
-
-
-
-
-
-
-
 
     async function insertAfterHeading(notePath, heading, text) {
         const fileContent = await invoke("read_note_file", { path: notePath });
@@ -496,7 +488,9 @@
             freeBlobUrls,
             resetCaptureState,
             deferHideCapture,
-            setLoading: (v) => { isLoading = v; },
+            setLoading: (v) => {
+                isLoading = v;
+            },
         });
     }
 
@@ -520,7 +514,9 @@
             freeBlobUrls,
             resetCaptureState,
             deferHideCapture,
-            setLoading: (v) => { isLoading = v; },
+            setLoading: (v) => {
+                isLoading = v;
+            },
         });
     }
 
@@ -594,8 +590,6 @@
         }
     }
 
-
-
     async function handleKeydown(e) {
         if (wikiAutocompleteOpen) {
             if (e.key === "ArrowDown") {
@@ -663,32 +657,24 @@
 
         const val = textareaRef.value;
         const cursor = textareaRef.selectionStart;
+        const trigger = findWikiTrigger(val, cursor);
 
-        // Look back from cursor for unmatched [[
-        const before = val.slice(0, cursor);
-        const triggerIndex = before.lastIndexOf("[[");
-
-        if (
-            triggerIndex === -1 ||
-            before.slice(triggerIndex + 2).includes("]]") ||
-            before.slice(triggerIndex + 2).includes("\n")
-        ) {
+        if (!trigger) {
             closeWikiAutocomplete();
             return;
         }
 
-        const query = before.slice(triggerIndex + 2);
         const results = getAutocompleteResults(
-            query,
+            trigger.query,
             appendPickerNotes,
             autocompleteResults,
         );
 
-        wikiAutocompleteQuery = query;
+        wikiAutocompleteQuery = trigger.query;
         wikiAutocompleteMatches = results;
         wikiAutocompleteOpen = results.length > 0;
         wikiAutocompleteIndex = 0;
-        wikiAnchorPos = triggerIndex;
+        wikiAnchorPos = trigger.triggerIndex;
     }
 
     function insertWikilink(note) {
@@ -697,18 +683,15 @@
         const val = textareaRef.value;
         const cursor = textareaRef.selectionStart;
         const queryLen = wikiAutocompleteQuery.length;
-        const anchor = cursor - queryLen - 2;
 
-        if (anchor < 0) return;
+        if (cursor - queryLen - 2 < 0) return;
 
-        const before = val.slice(0, anchor);
-        const after = val.slice(cursor);
-        const insertion = `[[${note.name}]]`;
-        const newPos = before.length + insertion.length;
+        const { before, after, insertion, newPosition } =
+            computeWikilinkInsertion(val, cursor, queryLen, note.name);
 
         textareaRef.value = before + insertion + after;
-        textareaRef.selectionStart = newPos;
-        textareaRef.selectionEnd = newPos;
+        textareaRef.selectionStart = newPosition;
+        textareaRef.selectionEnd = newPosition;
         textareaRef.focus();
 
         content = textareaRef.value;
@@ -1147,28 +1130,28 @@
             handleDragEnter(e);
         }}
     >
-    <CaptureImageGallery
-        images={uploadedImages}
-        on:remove={(event) => removeImage(event.detail)}
-        on:drop={(e) => handleDrop(e)}
-        on:dragover={(e) => {
-            e.preventDefault();
-            handleDragOver(e);
-        }}
-        on:dragenter={(e) => handleDragEnter(e)}
-    />
+        <CaptureImageGallery
+            images={uploadedImages}
+            on:remove={(event) => removeImage(event.detail)}
+            on:drop={(e) => handleDrop(e)}
+            on:dragover={(e) => {
+                e.preventDefault();
+                handleDragOver(e);
+            }}
+            on:dragenter={(e) => handleDragEnter(e)}
+        />
 
-    <CaptureEditor
-        bind:content
-        bind:textareaRef
-        {isLoading}
-        on:keydown={handleKeydown}
-        on:input={handleWikiInput}
-        on:blur={closeWikiAutocomplete}
-        on:drop={handleDrop}
-        on:dragover={handleDragOver}
-        on:dragenter={handleDragEnter}
-    />
+        <CaptureEditor
+            bind:content
+            bind:textareaRef
+            {isLoading}
+            on:keydown={handleKeydown}
+            on:input={handleWikiInput}
+            on:blur={closeWikiAutocomplete}
+            on:drop={handleDrop}
+            on:dragover={handleDragOver}
+            on:dragenter={handleDragEnter}
+        />
     </div>
 
     <CaptureActionBar
@@ -1188,23 +1171,17 @@
 
     <CaptureStatus message={statusMessage} type={statusType} />
 
-    {#if wikiAutocompleteOpen && wikiAutocompleteMatches.length > 0}
-        {@const pos = getWikiDropdownPosition()}
-        <div
-            class="wikilink-picker-position"
-            style="left: {pos.left}px; top: {pos.top}px;"
-        >
-            <WikilinkPicker
-                notes={wikiAutocompleteMatches}
-                selectedIndex={wikiAutocompleteIndex}
-                showPaths={showNotePaths}
-                onSelect={(note) => insertWikilink(note)}
-                onHover={(index) => {
-                    wikiAutocompleteIndex = index;
-                }}
-            />
-        </div>
-    {/if}
+    <CaptureWikilinkOverlay
+        open={wikiAutocompleteOpen}
+        matches={wikiAutocompleteMatches}
+        selectedIndex={wikiAutocompleteIndex}
+        position={getWikiDropdownPosition()}
+        showPaths={showNotePaths}
+        on:select={(event) => insertWikilink(event.detail)}
+        onHover={(index) => {
+            wikiAutocompleteIndex = index;
+        }}
+    />
 
     <AppendToPicker
         open={showAppendPicker}
@@ -1300,8 +1277,6 @@
             0 2px 8px var(--shadow-sm);
     }
 
-
-
     .content-wrapper {
         transition:
             filter 0.12s ease,
@@ -1320,8 +1295,6 @@
         pointer-events: none;
     }
 
-
-
     .content-wrapper {
         flex: 1;
         display: flex;
@@ -1329,31 +1302,8 @@
         overflow: hidden;
     }
 
-
-
-
-
-
-
-
-
     .capture-container:hover :global(.resize-handle) {
         opacity: 0.6;
-    }
-
-
-
-
-
-
-
-
-
-    .wikilink-picker-position {
-        position: fixed;
-        z-index: 200;
-        min-width: 220px;
-        max-width: 320px;
     }
 
     .capture-container.demo-fake-bg {
