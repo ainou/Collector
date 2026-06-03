@@ -1,8 +1,8 @@
 use chrono::Local;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::Path;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::log_safety::{redact_path, summarize_text_len};
 use crate::markdown_sections::{self, InsertPosition};
@@ -13,6 +13,93 @@ pub struct CaptureResult {
     #[allow(dead_code)]
     pub success: bool,
     pub message: String,
+}
+
+struct TempFileGuard {
+    path: PathBuf,
+    active: bool,
+}
+
+impl TempFileGuard {
+    fn new(path: PathBuf) -> Self {
+        Self { path, active: true }
+    }
+
+    fn disarm(&mut self) {
+        self.active = false;
+    }
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
+fn build_atomic_temp_path(file_path: &Path, attempt: u32) -> Result<PathBuf, String> {
+    let parent = file_path
+        .parent()
+        .ok_or_else(|| "Target file has no parent directory".to_string())?;
+    let file_name = file_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Target file has no valid filename".to_string())?;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+
+    Ok(parent.join(format!(
+        ".{}.{}.{}.{}.tmp",
+        file_name,
+        std::process::id(),
+        nanos,
+        attempt
+    )))
+}
+
+pub(crate) fn atomic_write_text(file_path: &Path, content: &str) -> Result<(), String> {
+    let mut last_error = None;
+
+    for attempt in 0..16 {
+        let temp_path = build_atomic_temp_path(file_path, attempt)?;
+        let mut guard = TempFileGuard::new(temp_path.clone());
+
+        let mut temp_file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                last_error = Some(error);
+                continue;
+            }
+            Err(error) => return Err(format!("Cannot create temporary file: {}", error)),
+        };
+
+        temp_file
+            .write_all(content.as_bytes())
+            .map_err(|error| format!("Cannot write temporary file: {}", error))?;
+        temp_file
+            .sync_all()
+            .map_err(|error| format!("Cannot sync temporary file: {}", error))?;
+        drop(temp_file);
+
+        fs::rename(&temp_path, file_path)
+            .map_err(|error| format!("Cannot replace target file atomically: {}", error))?;
+        guard.disarm();
+        return Ok(());
+    }
+
+    Err(format!(
+        "Cannot create unique temporary file: {}",
+        last_error
+            .map(|error| error.to_string())
+            .unwrap_or_else(|| "too many attempts".to_string())
+    ))
 }
 
 fn generate_header(template: &str) -> String {
@@ -364,7 +451,8 @@ pub async fn append_to_daily_note(
         settings.daily_note_create_heading_if_missing,
     );
 
-    fs::write(file_path, &new_content).map_err(|e| format!("Cannot write to daily note: {}", e))?;
+    atomic_write_text(file_path, &new_content)
+        .map_err(|e| format!("Cannot write to daily note: {}", e))?;
 
     log::info!(
         "Successfully appended to daily note (file={})",

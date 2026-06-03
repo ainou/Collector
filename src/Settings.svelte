@@ -90,6 +90,13 @@
         saveTimer = setTimeout(performSave, 400);
     }
 
+    function flushPendingSave() {
+        if (!saveTimer) return;
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        void performSave();
+    }
+
     async function performSave() {
         try {
             const payload = {
@@ -141,7 +148,7 @@
     });
 
     onDestroy(() => {
-        clearTimeout(saveTimer);
+        flushPendingSave();
     });
 
     // ── ui helpers ─────────────────────────────────────────
@@ -158,6 +165,7 @@
     async function handleClose() {
         statusMessage = "";
         statusType = "";
+        flushPendingSave();
         try {
             await invoke("close_settings");
         } catch (e) {
@@ -179,7 +187,7 @@
             vault_path: vaultPath,
             vault_name: vaultName,
         };
-        scheduleAutoSave();
+        await performSave();
     }
 </script>
 

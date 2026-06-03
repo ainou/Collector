@@ -417,7 +417,8 @@ async fn write_note_file(
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     let resolved = resolve_vault_write_path(&settings, &path, true)?;
-    fs::write(&resolved, content).map_err(|e| format!("Failed to write file: {}", e))
+    capture::atomic_write_text(&resolved, &content)
+        .map_err(|e| format!("Failed to write file: {}", e))
 }
 
 #[tauri::command]
