@@ -1,5 +1,6 @@
 <script>
     import Section from "./Section.svelte";
+    import Checkbox from "./Checkbox.svelte";
 
     export let settings;
     export let showStatus;
@@ -76,14 +77,9 @@
         </div>
 
         <div class="field">
-            <label class="checkbox" for="daily_note_create_if_missing">
-                <input
-                    type="checkbox"
-                    id="daily_note_create_if_missing"
-                    bind:checked={settings.daily_note_create_if_missing}
-                />
-                <span>Create daily note if it does not exist</span>
-            </label>
+            <Checkbox bind:checked={settings.daily_note_create_if_missing}>
+                Create daily note if it does not exist
+            </Checkbox>
             {#if settings.daily_note_create_if_missing}
                 <small>
                     Requires the Obsidian Advanced URI plugin. Collector opens
@@ -137,41 +133,26 @@
 
         {#if settings.daily_note_target_heading?.trim()}
             <div class="field">
-                <label class="checkbox" for="daily_note_create_heading_if_missing">
-                    <input
-                        type="checkbox"
-                        id="daily_note_create_heading_if_missing"
-                        bind:checked={settings.daily_note_create_heading_if_missing}
-                    />
-                    <span>Create heading if it does not exist</span>
-                </label>
+                <Checkbox bind:checked={settings.daily_note_create_heading_if_missing}>
+                    Create heading if it does not exist
+                </Checkbox>
             </div>
         {/if}
     </Section>
 
     <Section title="Buttons">
         <div class="field">
-            <label class="checkbox" for="show_capture_action_bar">
-                <input
-                    type="checkbox"
-                    id="show_capture_action_bar"
-                    bind:checked={settings.show_capture_action_bar}
-                />
-                <span>Show action buttons</span>
-            </label>
+            <Checkbox bind:checked={settings.show_capture_action_bar}>
+                Show action buttons
+            </Checkbox>
         </div>
     </Section>
 
     <Section title="Pickers">
         <div class="field">
-            <label class="checkbox" for="show_note_paths">
-                <input
-                    type="checkbox"
-                    id="show_note_paths"
-                    bind:checked={settings.show_note_paths}
-                />
-                <span>Show file paths in note pickers</span>
-            </label>
+            <Checkbox bind:checked={settings.show_note_paths}>
+                Show file paths in note pickers
+            </Checkbox>
             <small>
                 Displays the vault-relative path below each note name in the
                 Command Palette, Append Picker, and Wikilink autocomplete

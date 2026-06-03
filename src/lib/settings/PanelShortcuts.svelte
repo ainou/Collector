@@ -1,5 +1,6 @@
 <script>
     import Section from "./Section.svelte";
+    import Checkbox from "./Checkbox.svelte";
 
     export let settings;
     export let showStatus;
@@ -78,13 +79,9 @@
             />
         </div>
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.global_shortcut_closes_window}
-                />
-                <span>Use the same shortcut to close the note window</span>
-            </label>
+            <Checkbox bind:checked={settings.global_shortcut_closes_window}>
+                Use the same shortcut to close the note window
+            </Checkbox>
         </div>
         {#if !settings.global_shortcut_closes_window}
             <div class="field">
@@ -116,13 +113,9 @@
             />
         </div>
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.reader_shortcut_closes_window}
-                />
-                <span>Use the same shortcut to close the reader window</span>
-            </label>
+            <Checkbox bind:checked={settings.reader_shortcut_closes_window}>
+                Use the same shortcut to close the reader window
+            </Checkbox>
         </div>
         {#if !settings.reader_shortcut_closes_window}
             <div class="field">

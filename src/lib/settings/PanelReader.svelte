@@ -1,5 +1,6 @@
 <script>
     import Section from "./Section.svelte";
+    import Checkbox from "./Checkbox.svelte";
     import { open } from "@tauri-apps/plugin-dialog";
     import {
         getReaderIconComponent,
@@ -203,65 +204,44 @@
 
     <Section title="Content Filters">
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.reader_hide_frontmatter}
-                />
+            <Checkbox bind:checked={settings.reader_hide_frontmatter}>
                 Hide YAML Frontmatter
-            </label>
+            </Checkbox>
             <small>Hides the --- metadata block at the top of notes</small>
         </div>
 
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.reader_hide_dataview}
-                />
+            <Checkbox bind:checked={settings.reader_hide_dataview}>
                 Hide Code Blocks (Dataview, JS, etc.)
-            </label>
+            </Checkbox>
             <small>Hides all ```language ... ``` code blocks</small>
         </div>
 
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.reader_hide_obsidian_comments}
-                />
+            <Checkbox bind:checked={settings.reader_hide_obsidian_comments}>
                 Hide Obsidian Comments
-            </label>
+            </Checkbox>
             <small>Hides %% ... %% comment blocks</small>
         </div>
 
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.reader_hide_inline_fields}
-                />
+            <Checkbox bind:checked={settings.reader_hide_inline_fields}>
                 Hide Inline Fields (Dataview)
-            </label>
+            </Checkbox>
             <small>Hides key:: value fields from note text</small>
         </div>
 
         <div class="field">
-            <label class="checkbox">
-                <input type="checkbox" bind:checked={settings.reader_hide_html} />
+            <Checkbox bind:checked={settings.reader_hide_html}>
                 Hide HTML Blocks
-            </label>
+            </Checkbox>
             <small>Hides raw &lt;div&gt;, &lt;span&gt; and other HTML tags</small>
         </div>
 
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.reader_hide_callouts}
-                />
+            <Checkbox bind:checked={settings.reader_hide_callouts}>
                 Hide Callouts
-            </label>
+            </Checkbox>
         </div>
     </Section>
 </div>

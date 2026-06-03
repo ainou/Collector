@@ -1,5 +1,6 @@
 <script>
     import Section from "./Section.svelte";
+    import Checkbox from "./Checkbox.svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { normalizeDelayValue } from "./delay-utils.js";
 
@@ -94,13 +95,9 @@
 <div class="settings-panel">
     <Section title="Capture Window">
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.edge_detection_enabled}
-                />
+            <Checkbox bind:checked={settings.edge_detection_enabled}>
                 Open from screen edge
-            </label>
+            </Checkbox>
             <small>Open capture window when cursor touches screen edge</small>
         </div>
 
@@ -116,15 +113,15 @@
             <div class="field-label">Modifier keys</div>
             <div class="modifier-grid">
                 {#each ["cmd", "option", "shift", "ctrl"] as mod}
-                    <label class="checkbox modifier-checkbox">
-                        <input
-                            type="checkbox"
+                    <div class="modifier-checkbox">
+                        <Checkbox
                             checked={settings.edge_modifier_keys?.includes(mod)}
                             on:change={(e) =>
                                 toggleModifier("edge_modifier_keys", mod, e)}
-                        />
-                        {modifierLabel(mod)}
-                    </label>
+                        >
+                            {modifierLabel(mod)}
+                        </Checkbox>
+                    </div>
                 {/each}
             </div>
             <small>Hold modifier keys while touching edge</small>
@@ -132,13 +129,9 @@
 
         <div class="field">
             <div class="delay-toggle-row">
-                <label class="checkbox">
-                    <input
-                        type="checkbox"
-                        bind:checked={settings.note_edge_open_delay_enabled}
-                    />
+                <Checkbox bind:checked={settings.note_edge_open_delay_enabled}>
                     Open delay
-                </label>
+                </Checkbox>
 
                 {#if settings.note_edge_open_delay_enabled}
                     <label class="delay-input">
@@ -163,13 +156,9 @@
 
     <Section title="Reader Window">
         <div class="field">
-            <label class="checkbox">
-                <input
-                    type="checkbox"
-                    bind:checked={settings.reader_edge_enabled}
-                />
+            <Checkbox bind:checked={settings.reader_edge_enabled}>
                 Open from screen edge
-            </label>
+            </Checkbox>
             <small>Open reader window when cursor touches screen edge</small>
         </div>
 
@@ -185,9 +174,8 @@
             <div class="field-label">Modifier keys</div>
             <div class="modifier-grid">
                 {#each ["cmd", "option", "shift", "ctrl"] as mod}
-                    <label class="checkbox modifier-checkbox">
-                        <input
-                            type="checkbox"
+                    <div class="modifier-checkbox">
+                        <Checkbox
                             checked={settings.reader_edge_modifier_keys?.includes(
                                 mod,
                             )}
@@ -197,9 +185,10 @@
                                     mod,
                                     e,
                                 )}
-                        />
-                        {modifierLabel(mod)}
-                    </label>
+                        >
+                            {modifierLabel(mod)}
+                        </Checkbox>
+                    </div>
                 {/each}
             </div>
             <small>Hold modifier keys while touching edge</small>
@@ -207,13 +196,9 @@
 
         <div class="field">
             <div class="delay-toggle-row">
-                <label class="checkbox">
-                    <input
-                        type="checkbox"
-                        bind:checked={settings.reader_edge_open_delay_enabled}
-                    />
+                <Checkbox bind:checked={settings.reader_edge_open_delay_enabled}>
                     Open delay
-                </label>
+                </Checkbox>
 
                 {#if settings.reader_edge_open_delay_enabled}
                     <label class="delay-input">
@@ -362,21 +347,19 @@
     }
 
     .modifier-checkbox {
-        display: flex;
-        align-items: center;
-        gap: 8px;
         padding: 8px 10px;
         border: 1.5px solid var(--settings-input-border, rgba(0, 0, 0, 0.1));
         border-radius: 8px;
-        cursor: pointer;
-        transition:
-            border-color 0.15s,
-            background 0.15s;
-        font-size: 13px;
+        transition: all 0.15s;
     }
 
-    .modifier-checkbox:has(input:checked) {
-        border-color: var(--settings-input-border, rgba(0, 0, 0, 0.1));
+    .modifier-checkbox:has(.checkbox-wrapper input:checked) {
+        border-color: var(--settings-accent, #8b5cf6);
+        background: color-mix(
+            in srgb,
+            var(--settings-accent, #8b5cf6) 6%,
+            transparent
+        );
     }
 
     .exclusion-list {

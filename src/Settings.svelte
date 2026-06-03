@@ -479,14 +479,6 @@
         line-height: 1.45;
     }
 
-    :global(.checkbox) {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        font-weight: normal;
-    }
-
     footer {
         padding: 16px 24px;
         background: var(--settings-surface);
