@@ -148,6 +148,10 @@ pub struct Settings {
     pub reader_edge_open_delay_enabled: bool,
     #[serde(default = "default_edge_open_delay_ms")]
     pub reader_edge_open_delay_ms: u64,
+    #[serde(default = "default_reader_edge_side")]
+    pub reader_edge_side: String,
+    #[serde(default)]
+    pub reader_edge_modifier_keys: Vec<String>,
     #[serde(default = "default_true")]
     pub reader_hide_frontmatter: bool,
     #[serde(default = "default_true")]
@@ -213,6 +217,10 @@ fn default_reaction_time_ms() -> u64 {
 
 fn default_edge_open_delay_ms() -> u64 {
     1000
+}
+
+fn default_reader_edge_side() -> String {
+    "left".to_string()
 }
 
 fn default_vault_path() -> String {
@@ -491,6 +499,8 @@ impl Default for Settings {
             reader_edge_enabled: default_true(),
             reader_edge_open_delay_enabled: default_false(),
             reader_edge_open_delay_ms: default_edge_open_delay_ms(),
+            reader_edge_side: "left".to_string(),
+            reader_edge_modifier_keys: Vec::new(),
             reader_hide_frontmatter: default_true(),
             reader_hide_dataview: default_true(),
             reader_hide_obsidian_comments: default_true(),
@@ -689,6 +699,20 @@ impl Settings {
 
         if self.reader_edge_open_delay_ms < 50 || self.reader_edge_open_delay_ms > 10000 {
             return Err("reader_edge_open_delay_ms must be between 50 and 10000".to_string());
+        }
+
+        if self.reader_edge_side != "left" && self.reader_edge_side != "right" {
+            return Err("reader_edge_side must be 'left' or 'right'".to_string());
+        }
+
+        if self.reader_edge_side == self.edge_side
+            && self.reader_edge_enabled
+            && self.edge_detection_enabled
+        {
+            log::warn!(
+                "Reader and Capture edge detection use the same screen edge ({})",
+                self.edge_side
+            );
         }
 
         if self.border_radius > 30 {
