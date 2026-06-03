@@ -194,15 +194,9 @@
         }
     }
 
-    onMount(async () => {
-        try {
-            await getCurrentWindow();
-            isTauri = true;
-        } catch (e) {
-            // Browser preview mode has no Tauri window API.
-            isTauri = false;
-        }
+    /* ── onMount setup helpers ── */
 
+    function setupGlobalDragListeners() {
         globalDragEnter = (e) => {
             if (!isFileDrag(e)) return;
             e.preventDefault();
@@ -237,157 +231,187 @@
         document.addEventListener("dragover", globalDragOver, true);
         document.addEventListener("dragleave", globalDragLeave, true);
         document.addEventListener("drop", globalDrop, true);
+    }
+
+    async function setupCaptureWindowListeners() {
+        unlistenShow = await listen("show_capture", () => {
+            freeBlobUrls();
+            resetCaptureState();
+            statusMessage = "";
+            closeAppendPicker();
+            // Required: after the native Tauri show event, macOS needs a short delay
+            // before the textarea reliably accepts focus.
+            setTimeout(() => textareaRef?.focus(), 50);
+        });
+
+        await listen("insert_capture_text", (event) => {
+            const text =
+                typeof event.payload === "string" ? event.payload : "";
+            if (!text.trim()) return;
+            content = text;
+            // Required: after the native Tauri insert event, macOS needs a short delay
+            // before the textarea reliably accepts focus.
+            setTimeout(() => textareaRef?.focus(), 50);
+        });
+
+        await listen("capture_text_failed", (event) => {
+            const msg =
+                typeof event.payload === "string"
+                    ? event.payload
+                    : "Nothing to capture";
+            showStatus("✗ " + msg, "error");
+        });
+
+        await listen("save_as_note", () => {
+            handleSaveAsNote();
+        });
+    }
+
+    async function setupSettingsListener() {
+        unlistenSettingsChanged = await listen(
+            "settings_changed",
+            (event) => {
+                const newSettings = event.payload;
+
+                appSettings = {
+                    ...appSettings,
+                    background_color:
+                        newSettings.background_color ??
+                        appSettings.background_color,
+                    font_family:
+                        newSettings.font_family ??
+                        appSettings.font_family,
+                    font_size:
+                        newSettings.font_size ?? appSettings.font_size,
+                    border_radius:
+                        newSettings.border_radius ??
+                        appSettings.border_radius,
+                    window_transparency:
+                        newSettings.window_transparency ??
+                        appSettings.window_transparency,
+                    window_blur:
+                        newSettings.window_blur ??
+                        appSettings.window_blur,
+                    window_saturation:
+                        newSettings.window_saturation ??
+                        appSettings.window_saturation,
+                    window_brightness:
+                        newSettings.window_brightness ??
+                        appSettings.window_brightness,
+                    text_color:
+                        newSettings.text_color ??
+                        appSettings.text_color,
+                    accent_color:
+                        newSettings.accent_color ??
+                        appSettings.accent_color,
+                    internal_link_color:
+                        newSettings.internal_link_color ??
+                        appSettings.internal_link_color,
+                    external_link_color:
+                        newSettings.external_link_color ??
+                        appSettings.external_link_color,
+                    entry_header:
+                        newSettings.entry_header ??
+                        appSettings.entry_header,
+                    show_note_paths:
+                        newSettings.show_note_paths ??
+                        appSettings.show_note_paths,
+                    autocomplete_results:
+                        newSettings.autocomplete_results ??
+                        appSettings.autocomplete_results,
+                    save_to_daily_shortcut:
+                        newSettings.save_to_daily_shortcut ??
+                        appSettings.save_to_daily_shortcut,
+                    save_as_note_shortcut:
+                        newSettings.save_as_note_shortcut ??
+                        appSettings.save_as_note_shortcut,
+                    append_to_note_shortcut:
+                        newSettings.append_to_note_shortcut ??
+                        appSettings.append_to_note_shortcut,
+                    show_capture_action_bar:
+                        newSettings.show_capture_action_bar ??
+                        appSettings.show_capture_action_bar,
+                };
+                applyColorSettings(appSettings);
+            },
+        );
+    }
+
+    async function setupTauriDragDrop() {
+        const currentWindow = await getCurrentWindow();
+        unlistenDragDrop =
+            await currentWindow.onDragDropEvent(handleDragDropEvent);
+    }
+
+    async function loadInitialSettings() {
+        try {
+            const settings = await invoke("load_settings");
+            appSettings = {
+                background_color: settings.background_color,
+                font_family: settings.font_family,
+                font_size: settings.font_size,
+                border_radius: settings.border_radius,
+                window_transparency: settings.window_transparency ?? 55,
+                window_blur: settings.window_blur ?? 80,
+                window_saturation: settings.window_saturation ?? 200,
+                window_brightness: settings.window_brightness ?? 0,
+                text_color: settings.text_color ?? "#ffffff",
+                accent_color: settings.accent_color ?? "#8b5cf6",
+                internal_link_color:
+                    settings.internal_link_color ?? "#a78bfa",
+                external_link_color:
+                    settings.external_link_color ?? "#60a5fa",
+                entry_header: settings.entry_header ?? "#### HH:mm",
+                show_note_paths: settings.show_note_paths ?? true,
+                autocomplete_results:
+                    settings.autocomplete_results ?? 20,
+                save_to_daily_shortcut:
+                    settings.save_to_daily_shortcut ?? "Cmd+Enter",
+                save_as_note_shortcut:
+                    settings.save_as_note_shortcut ?? "Cmd+Shift+Enter",
+                append_to_note_shortcut:
+                    settings.append_to_note_shortcut ??
+                    "Cmd+Option+Enter",
+                show_capture_action_bar:
+                    settings.show_capture_action_bar ?? true,
+            };
+            applyColorSettings(appSettings);
+        } catch (e) {
+            console.error("Failed to load initial settings:", e);
+        }
+    }
+
+    function preloadVaultNotes() {
+        // Preload vault notes so the append picker can open immediately.
+        invoke("list_vault_notes")
+            .then((notes) => {
+                appendPickerNotes = notes;
+            })
+            .catch(() => {
+                // Non-fatal: the picker can still lazy-load later.
+            });
+    }
+
+    /* ── onMount ── */
+
+    onMount(async () => {
+        try {
+            await getCurrentWindow();
+            isTauri = true;
+        } catch (e) {
+            // Browser preview mode has no Tauri window API.
+            isTauri = false;
+        }
+
+        setupGlobalDragListeners();
 
         if (isTauri) {
             try {
-                unlistenShow = await listen("show_capture", () => {
-                    freeBlobUrls();
-                    resetCaptureState();
-                    statusMessage = "";
-                    closeAppendPicker();
-                    // Required: after the native Tauri show event, macOS needs a short delay
-                    // before the textarea reliably accepts focus.
-                    setTimeout(() => textareaRef?.focus(), 50);
-                });
-
-                await listen("insert_capture_text", (event) => {
-                    const text =
-                        typeof event.payload === "string" ? event.payload : "";
-                    if (!text.trim()) return;
-                    content = text;
-                    // Required: after the native Tauri insert event, macOS needs a short delay
-                    // before the textarea reliably accepts focus.
-                    setTimeout(() => textareaRef?.focus(), 50);
-                });
-
-                await listen("capture_text_failed", (event) => {
-                    const msg =
-                        typeof event.payload === "string"
-                            ? event.payload
-                            : "Nothing to capture";
-                    showStatus("✗ " + msg, "error");
-                });
-
-                await listen("save_as_note", () => {
-                    handleSaveAsNote();
-                });
-
-                unlistenSettingsChanged = await listen(
-                    "settings_changed",
-                    (event) => {
-                        const newSettings = event.payload;
-
-                        appSettings = {
-                            ...appSettings,
-                            background_color:
-                                newSettings.background_color ??
-                                appSettings.background_color,
-                            font_family:
-                                newSettings.font_family ??
-                                appSettings.font_family,
-                            font_size:
-                                newSettings.font_size ?? appSettings.font_size,
-                            border_radius:
-                                newSettings.border_radius ??
-                                appSettings.border_radius,
-                            window_transparency:
-                                newSettings.window_transparency ??
-                                appSettings.window_transparency,
-                            window_blur:
-                                newSettings.window_blur ??
-                                appSettings.window_blur,
-                            window_saturation:
-                                newSettings.window_saturation ??
-                                appSettings.window_saturation,
-                            window_brightness:
-                                newSettings.window_brightness ??
-                                appSettings.window_brightness,
-                            text_color:
-                                newSettings.text_color ??
-                                appSettings.text_color,
-                            accent_color:
-                                newSettings.accent_color ??
-                                appSettings.accent_color,
-                            internal_link_color:
-                                newSettings.internal_link_color ??
-                                appSettings.internal_link_color,
-                            external_link_color:
-                                newSettings.external_link_color ??
-                                appSettings.external_link_color,
-                            entry_header:
-                                newSettings.entry_header ??
-                                appSettings.entry_header,
-                            show_note_paths:
-                                newSettings.show_note_paths ??
-                                appSettings.show_note_paths,
-                            autocomplete_results:
-                                newSettings.autocomplete_results ??
-                                appSettings.autocomplete_results,
-                            save_to_daily_shortcut:
-                                newSettings.save_to_daily_shortcut ??
-                                appSettings.save_to_daily_shortcut,
-                            save_as_note_shortcut:
-                                newSettings.save_as_note_shortcut ??
-                                appSettings.save_as_note_shortcut,
-                            append_to_note_shortcut:
-                                newSettings.append_to_note_shortcut ??
-                                appSettings.append_to_note_shortcut,
-                            show_capture_action_bar:
-                                newSettings.show_capture_action_bar ??
-                                appSettings.show_capture_action_bar,
-                        };
-                        applyColorSettings(appSettings);
-                    },
-                );
-
-                const currentWindow = await getCurrentWindow();
-                unlistenDragDrop =
-                    await currentWindow.onDragDropEvent(handleDragDropEvent);
-
-                try {
-                    const settings = await invoke("load_settings");
-                    appSettings = {
-                        background_color: settings.background_color,
-                        font_family: settings.font_family,
-                        font_size: settings.font_size,
-                        border_radius: settings.border_radius,
-                        window_transparency: settings.window_transparency ?? 55,
-                        window_blur: settings.window_blur ?? 80,
-                        window_saturation: settings.window_saturation ?? 200,
-                        window_brightness: settings.window_brightness ?? 0,
-                        text_color: settings.text_color ?? "#ffffff",
-                        accent_color: settings.accent_color ?? "#8b5cf6",
-                        internal_link_color:
-                            settings.internal_link_color ?? "#a78bfa",
-                        external_link_color:
-                            settings.external_link_color ?? "#60a5fa",
-                        entry_header: settings.entry_header ?? "#### HH:mm",
-                        show_note_paths: settings.show_note_paths ?? true,
-                        autocomplete_results:
-                            settings.autocomplete_results ?? 20,
-                        save_to_daily_shortcut:
-                            settings.save_to_daily_shortcut ?? "Cmd+Enter",
-                        save_as_note_shortcut:
-                            settings.save_as_note_shortcut ?? "Cmd+Shift+Enter",
-                        append_to_note_shortcut:
-                            settings.append_to_note_shortcut ??
-                            "Cmd+Option+Enter",
-                        show_capture_action_bar:
-                            settings.show_capture_action_bar ?? true,
-                    };
-                    applyColorSettings(appSettings);
-                } catch (e) {
-                    console.error("Failed to load initial settings:", e);
-                }
-
-                // Preload vault notes so the append picker can open immediately.
-                invoke("list_vault_notes")
-                    .then((notes) => {
-                        appendPickerNotes = notes;
-                    })
-                    .catch(() => {
-                        // Non-fatal: the picker can still lazy-load later.
-                    });
+                await setupCaptureWindowListeners();
+                await setupSettingsListener();
+                await setupTauriDragDrop();
+                await loadInitialSettings();
+                preloadVaultNotes();
             } catch (e) {
                 console.error("Failed to listen to events:", e);
             }
