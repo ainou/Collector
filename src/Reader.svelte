@@ -1,5 +1,5 @@
 <script>
-  const ENABLE_DEMO_FAKE_BG = true; // Dev-only fallback for screen recorders that do not capture backdrop blur correctly.
+  import { ENABLE_DEMO_FAKE_BG } from "./lib/demo-fake-bg.js";
   const DEMO_FAKE_BG = import.meta.env.DEV && ENABLE_DEMO_FAKE_BG;
 
   import "./lib/reader/reader-shell.css";
