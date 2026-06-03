@@ -22,44 +22,61 @@
         { id: "vault", label: "Vault" },
         { id: "capture", label: "Capture" },
         { id: "reader", label: "Reader" },
-        { id: "look", label: "Look && Feel" },
+        { id: "look", label: "Look & Feel" },
         { id: "shortcuts", label: "Shortcuts" },
         { id: "activation", label: "Activation" },
         { id: "images", label: "Images" },
     ];
 
-    // ── theme (follows app background/text colors) ────────
+    // ── theme (system dark/light) ─────────────────────────
 
-    $: bgColor = settings.background_color || "#f2f2f2";
-    $: textColor = settings.text_color || "#1a1a1a";
+    let prefersDark = false;
 
-    $: isLight = (() => {
-        const hex = bgColor.replace("#", "");
-        if (hex.length < 6) return true;
-        const r = parseInt(hex.substr(0, 2), 16);
-        const g = parseInt(hex.substr(2, 2), 16);
-        const b = parseInt(hex.substr(4, 2), 16);
-        return (r * 299 + g * 587 + b * 114) / 1000 > 128;
-    })();
+    function updateTheme(mq) {
+        prefersDark = mq.matches;
+    }
 
-    $: t = {
-        bg: isLight ? bgColor : `color-mix(in srgb, ${bgColor} 92%, white)`,
-        surface: isLight
-            ? "rgba(255,255,255,0.95)"
-            : `color-mix(in srgb, ${bgColor} 75%, white)`,
-        text: textColor,
-        textSecondary: isLight ? "#6b7280" : "rgba(255,255,255,0.55)",
-        inputBg: isLight ? "#ffffff" : `color-mix(in srgb, ${bgColor} 60%, white)`,
-        border: isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.12)",
-        inputBorder: isLight ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.15)",
-        navText: isLight ? "#374151" : "rgba(255,255,255,0.7)",
-        navLabel: isLight ? "#111827" : "rgba(255,255,255,0.9)",
-        sectionTitle: isLight ? "#9ca3af" : "rgba(255,255,255,0.45)",
-        fieldLabel: isLight ? "#111827" : "rgba(255,255,255,0.85)",
-        btnBg: isLight ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.10)",
-        btnText: isLight ? "#111827" : "rgba(255,255,255,0.85)",
-        indicator: isLight ? "#6b7280" : "rgba(255,255,255,0.5)",
+    onMount(() => {
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        updateTheme(mq);
+        mq.addEventListener("change", updateTheme);
+    });
+
+    const lightTheme = {
+        bg: "#f2f2f2",
+        surface: "rgba(255,255,255,0.95)",
+        text: "#1a1a1a",
+        textSecondary: "#6b7280",
+        inputBg: "#ffffff",
+        border: "rgba(0,0,0,0.08)",
+        inputBorder: "rgba(0,0,0,0.10)",
+        navText: "#374151",
+        navLabel: "#111827",
+        sectionTitle: "#9ca3af",
+        fieldLabel: "#111827",
+        btnBg: "rgba(0,0,0,0.07)",
+        btnText: "#111827",
+        indicator: "#6b7280",
     };
+
+    const darkTheme = {
+        bg: "#1e1e2e",
+        surface: "rgba(255,255,255,0.06)",
+        text: "#e4e4e7",
+        textSecondary: "rgba(255,255,255,0.5)",
+        inputBg: "rgba(255,255,255,0.08)",
+        border: "rgba(255,255,255,0.08)",
+        inputBorder: "rgba(255,255,255,0.12)",
+        navText: "rgba(255,255,255,0.65)",
+        navLabel: "rgba(255,255,255,0.9)",
+        sectionTitle: "rgba(255,255,255,0.4)",
+        fieldLabel: "rgba(255,255,255,0.8)",
+        btnBg: "rgba(255,255,255,0.08)",
+        btnText: "rgba(255,255,255,0.85)",
+        indicator: "rgba(255,255,255,0.45)",
+    };
+
+    $: t = prefersDark ? darkTheme : lightTheme;
 
     // ── auto-save ──────────────────────────────────────────
 
@@ -313,15 +330,15 @@
     }
 
     .nav-item:hover {
-        background: color-mix(in srgb, var(--settings-text) 8%, transparent);
+        background: rgba(128, 128, 128, 0.08);
     }
 
     .nav-item.active {
-        background: color-mix(in srgb, var(--settings-text) 12%, transparent);
+        background: rgba(128, 128, 128, 0.12);
     }
 
     .nav-item.active:hover {
-        background: color-mix(in srgb, var(--settings-text) 12%, transparent);
+        background: rgba(128, 128, 128, 0.12);
     }
 
     .nav-item-label {
@@ -401,7 +418,7 @@
     :global(select:focus),
     :global(textarea:focus) {
         outline: none;
-        background: color-mix(in srgb, var(--settings-input-bg) 98%, var(--settings-accent));
+        background: rgba(139, 92, 246, 0.04);
     }
 
     :global(.section-description) {
@@ -451,7 +468,7 @@
     }
 
     :global(button.secondary:hover) {
-        background: color-mix(in srgb, var(--settings-btn-bg) 80%, var(--settings-text));
+        background: rgba(128, 128, 128, 0.18);
     }
 
     :global(.path-picker) {
@@ -463,7 +480,7 @@
         flex: 1;
         font-family: "SF Mono", Menlo, Monaco, monospace;
         font-size: 12px;
-        background: #f9f9f9;
+        background: var(--settings-input-bg);
     }
 
     :global(.path-picker button) {

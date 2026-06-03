@@ -62,9 +62,9 @@
 </script>
 
 <div class="settings-panel">
-    <Section title="Note Window">
+    <Section title="Capture Window">
         <div class="field">
-            <label for="global_shortcut">Open Note Window</label>
+            <label for="global_shortcut">Open Capture Window</label>
             <input
                 class="shortcut-input"
                 type="text"
@@ -85,7 +85,7 @@
         </div>
         {#if !settings.global_shortcut_closes_window}
             <div class="field">
-                <label for="global_close_shortcut">Close Note Window</label>
+                <label for="global_close_shortcut">Close Capture Window</label>
                 <input
                     class="shortcut-input"
                     type="text"
@@ -213,7 +213,7 @@
         padding: 13px 14px;
         border-radius: 12px;
         border: 1px solid var(--settings-border, rgba(15, 23, 42, 0.08));
-        background: color-mix(in srgb, var(--settings-text, black) 4%, transparent);
+        background: rgba(128, 128, 128, 0.05);
     }
 
     .info-note-title {

@@ -286,7 +286,7 @@
         gap: 12px;
         padding: 10px 12px;
         border-radius: 10px;
-        background: color-mix(in srgb, var(--settings-text, black) 5%, transparent);
+        background: rgba(128, 128, 128, 0.06);
         border: 1px solid var(--settings-border, rgba(0, 0, 0, 0.06));
     }
 
@@ -326,15 +326,15 @@
 
     .icon-choice:hover {
         color: var(--settings-nav-text, #374151);
-        border-color: color-mix(in srgb, var(--settings-accent, #8b5cf6) 25%, transparent);
-        background: color-mix(in srgb, var(--settings-accent, #8b5cf6) 10%, transparent);
+        border-color: rgba(139, 92, 246, 0.22);
+        background: rgba(139, 92, 246, 0.08);
         transform: none;
     }
 
     .icon-choice.selected {
         color: var(--settings-accent, #7c3aed);
-        border-color: color-mix(in srgb, var(--settings-accent, #8b5cf6) 30%, transparent);
-        background: color-mix(in srgb, var(--settings-accent, #8b5cf6) 16%, transparent);
+        border-color: rgba(124, 58, 237, 0.28);
+        background: rgba(139, 92, 246, 0.14);
     }
 
     .icon-choice-none {
@@ -353,7 +353,7 @@
         margin: 10px 0 12px;
         padding: 12px;
         border-radius: 10px;
-        background: color-mix(in srgb, var(--settings-text, black) 5%, transparent);
+        background: rgba(128, 128, 128, 0.06);
         border: 1px dashed var(--settings-border, rgba(0, 0, 0, 0.08));
         color: var(--settings-text-secondary, #6b7280);
         font-size: 12px;
@@ -374,7 +374,7 @@
     }
 
     .remove-note:hover {
-        background: color-mix(in srgb, #ef4444 12%, transparent);
+        background: rgba(239, 68, 68, 0.1);
         color: #dc2626;
     }
 

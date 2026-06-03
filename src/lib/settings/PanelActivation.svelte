@@ -88,7 +88,7 @@
     <Section title="Open Delays">
         <div class="delay-grid">
             <div class="delay-card">
-                <div class="delay-card-title">Note Window</div>
+                <div class="delay-card-title">Capture Window</div>
                 <div class="delay-toggle-row">
                     <label class="checkbox compact-checkbox">
                         <input
@@ -258,16 +258,13 @@
     }
 
     .delay-card {
-        padding: 12px;
-        border: 1.5px solid rgba(0, 0, 0, 0.08);
-        border-radius: 10px;
-        background: rgba(248, 250, 252, 0.72);
+        padding: 12px 0;
     }
 
     .delay-card-title {
         font-size: 12px;
         font-weight: 600;
-        color: #111827;
+        color: var(--settings-label, #111827);
         margin-bottom: 8px;
     }
 
