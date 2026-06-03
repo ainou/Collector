@@ -5,6 +5,7 @@
 
     export let settings;
     export let showStatus;
+    export let onChange = () => {};
 
     function toRelativeVaultDirectoryPath(path = "") {
         const normalizedPath = normalizeComparablePath(path.trim());
@@ -76,6 +77,7 @@
 
             settings.screenshot_path = relative;
             settings = { ...settings };
+            onChange();
         }
     }
 </script>

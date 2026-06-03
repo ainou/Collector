@@ -5,6 +5,7 @@
 
     export let settings;
     export let showStatus;
+    export let onChange = () => {};
 
     let isIndexing = false;
     let indexStatus = "";
@@ -20,6 +21,7 @@
         if (selected) {
             settings.vault_path = selected;
             indexStatus = "";
+            onChange();
         }
     }
 

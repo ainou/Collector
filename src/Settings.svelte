@@ -80,9 +80,13 @@
 
     // ── auto-save ──────────────────────────────────────────
 
-    let lastSavedJson = "";
-    let pendingSave;
-    let autoSaveInterval;
+    let saveTimer;
+
+    function scheduleAutoSave() {
+        if (!isLoaded) return;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(performSave, 400);
+    }
 
     async function performSave() {
         try {
@@ -99,7 +103,6 @@
 
             await invoke("save_settings", { newSettings: payload });
             settings = { ...payload };
-            lastSavedJson = JSON.stringify(payload);
             showStatus("Saved", "success");
         } catch (e) {
             console.error("Auto-save failed:", e);
@@ -119,30 +122,20 @@
             };
             settings = normalized;
             lastSavedJson = JSON.stringify(normalized);
-            isLoaded = true;
         } catch (e) {
             console.error("Failed to load settings:", e);
             showStatus("Failed to load settings", "error");
+        } finally {
+            isLoaded = true;
         }
     }
 
     onMount(async () => {
         await loadSettings();
-
-        // Poll for deep changes (bind:value mutates in place)
-        autoSaveInterval = setInterval(() => {
-            if (!isLoaded) return;
-            const current = JSON.stringify(settings);
-            if (current !== lastSavedJson) {
-                clearTimeout(pendingSave);
-                pendingSave = setTimeout(performSave, 300);
-            }
-        }, 200);
     });
 
     onDestroy(() => {
-        clearInterval(autoSaveInterval);
-        clearTimeout(pendingSave);
+        clearTimeout(saveTimer);
     });
 
     // ── ui helpers ─────────────────────────────────────────
@@ -194,9 +187,15 @@
 >
     <header>
         <h1>Settings</h1>
-        <span class="save-indicator" class:visible={statusMessage}>
-            {statusMessage}
-        </span>
+        {#if statusMessage}
+            <span
+                class="save-indicator"
+                class:visible={statusMessage}
+                class:error={statusType === "error"}
+            >
+                {statusMessage}
+            </span>
+        {/if}
     </header>
 
     <main>
@@ -216,21 +215,21 @@
                 </nav>
             </aside>
 
-            <div class="settings-content">
+            <div class="settings-content" on:input={scheduleAutoSave}>
                 {#if activePanel === "vault"}
-                    <PanelVault bind:settings {showStatus} />
+                    <PanelVault bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "capture"}
                     <PanelCapture bind:settings {showStatus} />
                 {:else if activePanel === "reader"}
-                    <PanelReader bind:settings {showStatus} />
+                    <PanelReader bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "look"}
                     <PanelLook bind:settings {showStatus} />
                 {:else if activePanel === "shortcuts"}
                     <PanelShortcuts bind:settings {showStatus} />
                 {:else if activePanel === "activation"}
-                    <PanelActivation bind:settings {showStatus} />
+                    <PanelActivation bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {:else if activePanel === "images"}
-                    <PanelImages bind:settings {showStatus} />
+                    <PanelImages bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {/if}
             </div>
         </div>
@@ -274,8 +273,11 @@
 
     .save-indicator {
         font-size: 11px;
-        font-weight: 500;
-        color: var(--settings-indicator);
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 5px;
+        color: #065f46;
+        background: #d1fae5;
         opacity: 0;
         transition: opacity 0.2s ease;
         letter-spacing: 0.1px;
@@ -283,6 +285,11 @@
 
     .save-indicator.visible {
         opacity: 1;
+    }
+
+    .save-indicator.error {
+        color: #991b1b;
+        background: #fecaca;
     }
 
     main {
@@ -393,7 +400,6 @@
 
     :global(input[type="text"]),
     :global(input[type="number"]),
-    :global(select),
     :global(textarea) {
         width: 100%;
         padding: 9px 12px;
@@ -404,6 +410,40 @@
         color: var(--settings-text);
         transition: all 0.2s ease;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+    }
+
+    :global(input[type="number"]) {
+        -moz-appearance: textfield;
+    }
+
+    :global(input[type="number"]::-webkit-inner-spin-button),
+    :global(input[type="number"]::-webkit-outer-spin-button) {
+        -webkit-appearance: none;
+        appearance: none;
+        display: none;
+    }
+
+    :global(select) {
+        display: block;
+        width: 100%;
+        padding: 9px 28px 9px 12px;
+        border: 1.5px solid var(--settings-input-border);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--settings-input-bg);
+        color: var(--settings-text);
+        transition: all 0.2s ease;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+        min-height: 36px;
+        box-sizing: border-box;
+        -moz-appearance: none;
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 10px 6px;
+        cursor: pointer;
     }
 
     :global(textarea) {

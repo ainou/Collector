@@ -10,6 +10,7 @@
 
     export let settings;
     export let showStatus;
+    export let onChange = () => {};
 
     function getFilename(path) {
         return (
@@ -69,6 +70,7 @@
 
             settings.pinned_notes = [...existing, ...additions];
             settings = { ...settings };
+            onChange();
 
             if (skippedOutsideVault) {
                 showStatus("Pinned notes must be inside the current vault", "error");
@@ -81,6 +83,7 @@
             (note) => note.path !== pathToRemove,
         );
         settings = { ...settings };
+        onChange();
     }
 
     function updatePinnedNote(pathToUpdate, field, value) {

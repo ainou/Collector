@@ -66,6 +66,7 @@
     function normalizeDelayField(field, fallback = 1000) {
         settings[field] = normalizeDelayValue(settings[field], fallback);
         settings = { ...settings };
+        onChange();
     }
 
     $: filteredRunningApps = filterApps(runningApps, appPickerQuery);
@@ -175,6 +176,7 @@
                                     );
                                 }
                                 settings = { ...settings };
+                                onChange();
                             }}
                         />
                         {modifierLabel(mod)}
@@ -314,8 +316,7 @@
     }
 
     .modifier-checkbox:has(input:checked) {
-        border-color: #8b5cf6;
-        background: rgba(139, 92, 246, 0.06);
+        border-color: var(--settings-input-border, rgba(0, 0, 0, 0.1));
     }
 
     .exclusion-list {
