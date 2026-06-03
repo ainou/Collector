@@ -110,7 +110,7 @@
                 bind:value={settings.image_filename}
                 placeholder="screenshot-YYYY-MM-DD-HHmmss"
             />
-            <small>Supports: YYYY, MM, DD, HH, mm, ss</small>
+            <small>Supports: YYYY, MM, DD, HH (24h), hh / h (12h), mm, ss, A / a</small>
         </div>
     </Section>
 

@@ -304,6 +304,10 @@
         transition: all 0.15s;
     }
 
+    .modifier-checkbox :global(.checkbox-wrapper) {
+        width: 100%;
+    }
+
     .modifier-checkbox:has(.checkbox-wrapper input:checked) {
         background: color-mix(
             in srgb,
