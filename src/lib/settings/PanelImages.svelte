@@ -1,9 +1,11 @@
 <script>
+    import Section from "./Section.svelte";
     import { open } from "@tauri-apps/plugin-dialog";
     import { normalizeComparablePath } from "./path-utils.js";
 
     export let settings;
     export let showStatus;
+    export let onChange = () => {};
 
     function toRelativeVaultDirectoryPath(path = "") {
         const normalizedPath = normalizeComparablePath(path.trim());
@@ -75,13 +77,13 @@
 
             settings.screenshot_path = relative;
             settings = { ...settings };
+            onChange();
         }
     }
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Storage</h2>
+    <Section title="Storage">
         <div class="field">
             <label for="screenshot_path">Image Folder</label>
             <div class="path-picker">
@@ -108,12 +110,11 @@
                 bind:value={settings.image_filename}
                 placeholder="screenshot-YYYY-MM-DD-HHmmss"
             />
-            <small>Supports: YYYY, MM, DD, HH, mm, ss</small>
+            <small>Supports: YYYY, MM, DD, HH (24h), hh / h (12h), mm, ss, A / a</small>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Embed Defaults</h2>
+    <Section title="Embed Defaults">
         <div class="field">
             <label for="compression_max_kb">Max. Image Size (KB)</label>
             <input
@@ -121,7 +122,7 @@
                 id="compression_max_kb"
                 bind:value={settings.compression_max_kb}
                 min="50"
-                max="1000"
+                max="2000"
                 step="50"
             />
             <small>Images will be compressed to this size</small>
@@ -140,5 +141,5 @@
                 no width)</small
             >
         </div>
-    </section>
+    </Section>
 </div>

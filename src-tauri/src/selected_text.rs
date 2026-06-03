@@ -1,62 +1,115 @@
-/// Capture the currently selected text from the active application (macOS).
+/// Capture selected text via clipboard-sentinel fallback.
 ///
-/// Implementation strategy:
-/// - Save current clipboard string
-/// - Synthesize Cmd+C to copy selection into clipboard
-/// - Read clipboard string
-/// - Restore previous clipboard
+/// Strategy:
+/// 1. Save current clipboard content (plain text, via `pbpaste`)
+/// 2. Write a unique sentinel to clipboard (via `pbcopy`)
+/// 3. Wait briefly for shortcut modifiers to release (Cmd+Shift+C → plain Cmd+C)
+/// 4. Log which app is frontmost before sending Cmd+C
+/// 5. Send Cmd+C to frontmost app via `osascript` (System Events keystroke)
+/// 6. Poll clipboard every 50 ms up to ~800 ms until sentinel is gone
+/// 7. If clipboard changed -> capture text, restore original clipboard, return text
+/// 8. If sentinel remains -> restore original clipboard, return None
 ///
 /// Notes:
-/// - Requires Accessibility permission for the app to send synthetic key events.
-/// - If nothing is selected, many apps keep clipboard unchanged; we treat that as no capture.
+/// - pbcopy/pbpaste only handle plain text NSPasteboard type (NSStringPboardType).
+///   Rich clipboard content (images, RTF, etc.) is NOT restored -- this is a
+///   plain-text-only save/restore for the capture use case.
+/// - The sentinel avoids a false negative when selected text happens to match
+///   the previous clipboard content.
 #[cfg(target_os = "macos")]
 pub fn capture_selected_text() -> Option<String> {
-    log::info!("capture_selected_text: Starting...");
+    log::debug!("clipboard fallback started");
 
-    let previous = read_clipboard_string();
-    log::info!(
-        "capture_selected_text: Previous clipboard length={}",
-        previous
-            .as_deref()
-            .map(crate::log_safety::summarize_text_len)
-            .unwrap_or(0)
+    // 1. Save current clipboard content
+    let previous = run_pbpaste();
+    log::debug!(
+        "previous clipboard text saved: {}, length={}",
+        previous.is_some(),
+        previous.as_deref().map(|s| s.len()).unwrap_or(0)
     );
 
-    // Trigger "Copy" in the currently focused app.
-    log::info!("capture_selected_text: Synthesizing Cmd+C...");
-    if !synthesize_copy() {
-        log::error!("capture_selected_text: Failed to synthesize copy!");
-        return None;
-    }
-    log::info!("capture_selected_text: Cmd+C synthesized successfully");
-
-    // Give the target app a moment to update the clipboard.
-    // Increased delay since we now have delays in the key synthesis itself
-    std::thread::sleep(std::time::Duration::from_millis(250));
-
-    let captured = read_clipboard_string();
-    log::info!(
-        "capture_selected_text: Captured clipboard length={}",
-        captured
-            .as_deref()
-            .map(crate::log_safety::summarize_text_len)
+    // 2. Write a unique sentinel
+    let sentinel = format!(
+        "__COLLECTOR_CLIPBOARD_SENTINEL_{}__",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
             .unwrap_or(0)
     );
-
-    // Restore previous clipboard to avoid disrupting the user.
-    if let Some(prev) = previous.as_deref() {
-        log::info!("capture_selected_text: Restoring previous clipboard");
-        write_clipboard_string(prev);
-    }
-
-    if captured.as_deref() == previous.as_deref() {
-        log::warn!(
-            "capture_selected_text: clipboard unchanged — nothing selected or copy failed"
-        );
+    if !run_pbcopy(&sentinel) {
+        log::error!("failed to write sentinel to clipboard");
         return None;
     }
+    log::info!("sentinel written");
 
-    log::info!("capture_selected_text: Returning captured text");
+    // 3. Small delay so the user can release Cmd+Shift before we send Cmd+C.
+    //    Without this, the physical Shift key might still be held from the
+    //    global shortcut (Cmd+Shift+C), causing Cmd+Shift+C to arrive at
+    //    the target app instead of plain Cmd+C.
+    log::info!("waiting for shortcut modifiers to release: 150 ms");
+    std::thread::sleep(std::time::Duration::from_millis(150));
+
+    // 4. Log which app is frontmost right before we send the keystroke.
+    //    If Collector is frontmost at this point, the capture window opened too early.
+    if let Some(app_name) = run_frontmost_app_name() {
+        log::info!("frontmost app before Cmd+C: {}", app_name);
+    } else {
+        log::warn!("could not determine frontmost app before Cmd+C");
+    }
+
+    // 5. Send Cmd+C
+    if !run_keystroke_copy() {
+        log::error!("osascript keystroke failed - Cmd+C may not have been sent.");
+        log::error!("macOS may be blocking Collector from controlling System Events.");
+        if let Some(prev) = previous {
+            run_pbcopy(&prev);
+        }
+        return None;
+    }
+    log::info!("Cmd+C sent");
+
+    // 6. Poll clipboard until sentinel is replaced (or timeout)
+    let poll_interval = std::time::Duration::from_millis(50);
+    let max_attempts = 16; // 16 x 50 ms = 800 ms
+    let mut captured: Option<String> = None;
+
+    for attempt in 1..=max_attempts {
+        std::thread::sleep(poll_interval);
+
+        let current = run_pbpaste();
+        match current {
+            Some(ref text) if text == &sentinel => {
+                continue;
+            }
+            Some(text) => {
+                log::info!("clipboard replaced sentinel after {} ms", attempt * 50);
+                let trimmed = text.trim().to_string();
+                if !trimmed.is_empty() {
+                    captured = Some(trimmed);
+                }
+                break;
+            }
+            None => {
+                log::debug!("clipboard became empty after {} ms", attempt * 50);
+                break;
+            }
+        }
+    }
+
+    if captured.is_none() {
+        log::warn!("no text captured; sentinel unchanged after {} ms", max_attempts * 50);
+    } else {
+        log::info!("captured text length={}", captured.as_ref().map(|s| s.len()).unwrap_or(0));
+    }
+
+    // 7. Restore original clipboard
+    let restored = if let Some(prev) = &previous {
+        run_pbcopy(prev)
+    } else {
+        run_pbcopy("")
+    };
+    log::info!("clipboard restored: {}", restored);
+
     captured
 }
 
@@ -66,129 +119,89 @@ pub fn capture_selected_text() -> Option<String> {
 }
 
 // =============================================================================
-// macOS implementation details
+// macOS helpers (built-in CLI tools, no FFI)
 // =============================================================================
 
-#[cfg(target_os = "macos")]
-fn read_clipboard_string() -> Option<String> {
-    use cocoa::appkit::{NSPasteboard, NSPasteboardTypeString};
-    use cocoa::base::{id, nil};
-    use cocoa::foundation::NSString;
-    use std::ffi::CStr;
-
-    unsafe {
-        let pb: id = NSPasteboard::generalPasteboard(nil);
-        if pb == nil {
-            return None;
-        }
-        let s: id = pb.stringForType(NSPasteboardTypeString);
-        if s == nil {
-            return None;
-        }
-        let c_str = NSString::UTF8String(s);
-        if c_str.is_null() {
-            return None;
-        }
-        Some(CStr::from_ptr(c_str).to_string_lossy().into_owned())
+/// Read current clipboard content via `pbpaste`.
+/// Returns `None` if clipboard is empty or unreadable.
+fn run_pbpaste() -> Option<String> {
+    let output = std::process::Command::new("pbpaste")
+        .env_remove("LANG")
+        .output()
+        .ok()?;
+    if output.status.success() && !output.stdout.is_empty() {
+        String::from_utf8(output.stdout).ok()
+    } else {
+        None
     }
 }
 
-#[cfg(target_os = "macos")]
-fn write_clipboard_string(value: &str) {
-    use cocoa::appkit::{NSPasteboard, NSPasteboardTypeString};
-    use cocoa::base::{id, nil};
-    use cocoa::foundation::NSString;
-
-    unsafe {
-        let pb: id = NSPasteboard::generalPasteboard(nil);
-        if pb == nil {
-            return;
+/// Write text to clipboard via `pbcopy`.
+/// Returns true if the write succeeded.
+fn run_pbcopy(text: &str) -> bool {
+    use std::io::Write;
+    let mut child = match std::process::Command::new("pbcopy")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("pbcopy spawn failed: {}", e);
+            return false;
         }
-        // clearContents returns an integer (not an Objective-C object)
-        let _ = pb.clearContents();
-        let ns_string = NSString::alloc(nil).init_str(value);
-        let _: bool = pb.setString_forType(ns_string, NSPasteboardTypeString);
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn synthesize_copy() -> bool {
-    use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};
-    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-
-    // Check if we have accessibility permissions
-    if !check_accessibility_permissions() {
-        log::error!("synthesize_copy: NO ACCESSIBILITY PERMISSIONS!");
-        log::error!("Please grant Accessibility permissions in System Settings > Privacy & Security > Accessibility");
-        return false;
-    }
-
-    // macOS virtual keycodes
-    const KEY_C: CGKeyCode = 8;
-    const KEY_CMD: CGKeyCode = 55;
-
-    let src = CGEventSource::new(CGEventSourceStateID::CombinedSessionState);
-    let Ok(src) = src else {
-        log::error!("synthesize_copy: Failed to create event source");
-        return false;
     };
-
-    // Small delay to ensure the target app is ready
-    std::thread::sleep(std::time::Duration::from_millis(50));
-
-    // Press Command
-    if let Ok(cmd_down) = CGEvent::new_keyboard_event(src.clone(), KEY_CMD, true) {
-        cmd_down.post(CGEventTapLocation::AnnotatedSession);
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    } else {
-        return false;
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(text.as_bytes());
+        let _ = stdin.flush();
     }
-
-    // Press C with Command flag
-    if let Ok(c_down) = CGEvent::new_keyboard_event(src.clone(), KEY_C, true) {
-        c_down.set_flags(CGEventFlags::CGEventFlagCommand);
-        c_down.post(CGEventTapLocation::AnnotatedSession);
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    } else {
-        return false;
+    match child.wait() {
+        Ok(status) => status.success(),
+        Err(e) => {
+            log::error!("pbcopy wait failed: {}", e);
+            false
+        }
     }
-
-    // Release C
-    if let Ok(c_up) = CGEvent::new_keyboard_event(src.clone(), KEY_C, false) {
-        c_up.set_flags(CGEventFlags::CGEventFlagCommand);
-        c_up.post(CGEventTapLocation::AnnotatedSession);
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    } else {
-        return false;
-    }
-
-    // Release Command
-    if let Ok(cmd_up) = CGEvent::new_keyboard_event(src, KEY_CMD, false) {
-        cmd_up.post(CGEventTapLocation::AnnotatedSession);
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    } else {
-        return false;
-    }
-
-    true
 }
 
-/// Check if the app has Accessibility permissions on macOS
-#[cfg(target_os = "macos")]
-fn check_accessibility_permissions() -> bool {
-    extern "C" {
-        fn AXIsProcessTrusted() -> bool;
-    }
-
-    log::info!("capture_selected_text: checking Accessibility permission state");
-    let trusted = unsafe { AXIsProcessTrusted() };
-    if trusted {
-        log::info!("capture_selected_text: Accessibility permission granted");
+/// Get the name of the currently frontmost application via `osascript`.
+fn run_frontmost_app_name() -> Option<String> {
+    let output = std::process::Command::new("osascript")
+        .args(&[
+            "-e",
+            "tell application \"System Events\" to get name of first application process whose frontmost is true",
+        ])
+        .output()
+        .ok()?;
+    if output.status.success() {
+        let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if name.is_empty() { None } else { Some(name) }
     } else {
-        log::error!(
-            "capture_selected_text: Accessibility permission not granted. Grant access in System Settings > Privacy & Security > Accessibility, enable Collector, then restart the app."
-        );
+        None
     }
+}
 
-    trusted
+/// Send Cmd+C to the frontmost app via `osascript`.
+/// Uses `System Events` which performs the keystroke on behalf of Collector.
+/// This may require macOS Accessibility or Automation permission.
+fn run_keystroke_copy() -> bool {
+    let output = std::process::Command::new("osascript")
+        .args(&[
+            "-e",
+            "tell application \"System Events\" to keystroke \"c\" using command down",
+        ])
+        .output()
+        .ok();
+
+    match output {
+        Some(out) if out.status.success() => true,
+        Some(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            log::error!("osascript keystroke failed: {}", stderr.trim());
+            false
+        }
+        None => {
+            log::error!("osascript command failed to spawn");
+            false
+        }
+    }
 }

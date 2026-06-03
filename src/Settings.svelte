@@ -1,87 +1,106 @@
 <script>
     import { invoke } from "@tauri-apps/api/core";
-    import { onMount } from "svelte";
+    import { onMount, onDestroy } from "svelte";
+    import { confirm as dialogConfirm } from "@tauri-apps/plugin-dialog";
     import PanelActivation from "./lib/settings/PanelActivation.svelte";
+    import PanelCapture from "./lib/settings/PanelCapture.svelte";
     import PanelImages from "./lib/settings/PanelImages.svelte";
     import PanelLook from "./lib/settings/PanelLook.svelte";
-    import PanelNoteWindow from "./lib/settings/PanelNoteWindow.svelte";
-    import PanelObsidian from "./lib/settings/PanelObsidian.svelte";
-    import PanelReaderWindow from "./lib/settings/PanelReaderWindow.svelte";
+    import PanelReader from "./lib/settings/PanelReader.svelte";
     import PanelShortcuts from "./lib/settings/PanelShortcuts.svelte";
+    import PanelVault from "./lib/settings/PanelVault.svelte";
     import { normalizeDelayValue } from "./lib/settings/delay-utils.js";
     import { normalizePinnedNotes } from "./lib/settings/pinned-notes.js";
     import { defaultSettings } from "./lib/stores.js";
 
     let settings = { ...defaultSettings };
-    let originalSettings = { ...defaultSettings };
-    let isSaving = false;
+    let vaultNotes = [];
+    let isLoaded = false;
     let statusMessage = "";
     let statusType = "";
-    let activePanel = "obsidian";
+    let activePanel = "vault";
 
     const settingsPanels = [
-        {
-            id: "obsidian",
-            label: "Obsidian Integration",
-        },
-        {
-            id: "images",
-            label: "Images",
-        },
-        {
-            id: "look",
-            label: "Look",
-        },
-        {
-            id: "note-window",
-            label: "Note Window",
-        },
-        {
-            id: "reader-window",
-            label: "Reader Window",
-        },
-        {
-            id: "activation",
-            label: "Activation",
-        },
-        {
-            id: "shortcuts",
-            label: "Shortcuts",
-        },
+        { id: "vault", label: "Vault" },
+        { id: "capture", label: "Capture" },
+        { id: "reader", label: "Reader" },
+        { id: "look", label: "Look & Feel" },
+        { id: "shortcuts", label: "Shortcuts" },
+        { id: "activation", label: "Activation" },
+        { id: "images", label: "Images" },
     ];
 
-    async function loadSettings() {
-        try {
-            const loaded = await invoke("load_settings");
-            const normalized = {
-                ...defaultSettings,
-                ...loaded,
-                pinned_notes: normalizePinnedNotes(loaded.pinned_notes),
-            };
-            settings = normalized;
-            originalSettings = { ...normalized };
-        } catch (e) {
-            console.error("Failed to load settings:", e);
-            showStatus("Failed to load settings", "error");
-        }
+    // ── theme (system dark/light) ─────────────────────────
+
+    let prefersDark = false;
+
+    function updateTheme(mq) {
+        prefersDark = mq.matches;
     }
 
-    onMount(async () => {
-        await loadSettings();
+    onMount(() => {
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        updateTheme(mq);
+        mq.addEventListener("change", updateTheme);
     });
 
-    function showStatus(message, type = "success") {
-        statusMessage = message;
-        statusType = type;
-        setTimeout(() => {
-            statusMessage = "";
-            statusType = "";
-        }, 3000);
+    const lightTheme = {
+        bg: "#f2f2f2",
+        surface: "rgba(255,255,255,0.95)",
+        text: "#1a1a1a",
+        textSecondary: "#6b7280",
+        inputBg: "#ffffff",
+        border: "rgba(0,0,0,0.08)",
+        inputBorder: "rgba(0,0,0,0.10)",
+        navText: "#374151",
+        navLabel: "#111827",
+        sectionTitle: "#9ca3af",
+        fieldLabel: "#111827",
+        btnBg: "rgba(0,0,0,0.07)",
+        btnText: "#111827",
+        indicator: "#6b7280",
+    };
+
+    const darkTheme = {
+        bg: "#1e1e2e",
+        surface: "rgba(255,255,255,0.06)",
+        text: "#e4e4e7",
+        textSecondary: "rgba(255,255,255,0.5)",
+        inputBg: "rgba(255,255,255,0.08)",
+        border: "rgba(255,255,255,0.08)",
+        inputBorder: "rgba(255,255,255,0.12)",
+        navText: "rgba(255,255,255,0.65)",
+        navLabel: "rgba(255,255,255,0.9)",
+        sectionTitle: "rgba(255,255,255,0.4)",
+        fieldLabel: "rgba(255,255,255,0.8)",
+        btnBg: "rgba(255,255,255,0.08)",
+        btnText: "rgba(255,255,255,0.85)",
+        indicator: "rgba(255,255,255,0.45)",
+    };
+
+    $: t = prefersDark ? darkTheme : lightTheme;
+
+    // ── auto-save ──────────────────────────────────────────
+
+    let saveTimer;
+
+    function scheduleAutoSave() {
+        if (!isLoaded) return;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            saveTimer = null;
+            void performSave();
+        }, 400);
     }
 
-    async function handleSave() {
-        isSaving = true;
+    function flushPendingSave() {
+        if (!saveTimer) return;
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        void performSave();
+    }
 
+    async function performSave() {
         try {
             const payload = {
                 ...settings,
@@ -95,27 +114,61 @@
             };
 
             await invoke("save_settings", { newSettings: payload });
-
             settings = { ...payload };
-            originalSettings = { ...payload };
-
-            showStatus("✓ Settings saved", "success");
+            showStatus("Saved", "success");
         } catch (e) {
-            console.error("Failed to save settings:", e);
-            console.error("Error details:", JSON.stringify(e));
-            showStatus("Failed to save settings: " + e.toString(), "error");
-        } finally {
-            isSaving = false;
-            settings = { ...settings };
+            console.error("Auto-save failed:", e);
+            showStatus("Save failed: " + e.toString(), "error");
         }
     }
 
-    async function handleCancel() {
-        settings = { ...originalSettings };
+    // ── lifecycle ──────────────────────────────────────────
 
+    async function loadSettings() {
+        try {
+            const loaded = await invoke("load_settings");
+            const normalized = {
+                ...defaultSettings,
+                ...loaded,
+                pinned_notes: normalizePinnedNotes(loaded.pinned_notes),
+            };
+            settings = normalized;
+        } catch (e) {
+            console.error("Failed to load settings:", e);
+            showStatus("Failed to load settings", "error");
+        } finally {
+            isLoaded = true;
+        }
+    }
+
+    onMount(async () => {
+        await loadSettings();
+        try {
+            vaultNotes = await invoke("list_vault_notes");
+        } catch (e) {
+            console.error("Failed to load vault notes:", e);
+        }
+    });
+
+    onDestroy(() => {
+        flushPendingSave();
+    });
+
+    // ── ui helpers ─────────────────────────────────────────
+
+    function showStatus(message, type = "success") {
+        statusMessage = message;
+        statusType = type;
+        setTimeout(() => {
+            statusMessage = "";
+            statusType = "";
+        }, 2000);
+    }
+
+    async function handleClose() {
         statusMessage = "";
         statusType = "";
-
+        flushPendingSave();
         try {
             await invoke("close_settings");
         } catch (e) {
@@ -123,21 +176,53 @@
         }
     }
 
-    function handleReset() {
-        if (confirm("Reset all settings to default?")) {
-            settings = { ...defaultSettings };
-        }
-    }
+    async function handleReset() {
+        const confirmed = await dialogConfirm(
+            "Reset all settings to defaults? Your vault connection will be kept.",
+            { title: "Reset settings", kind: "warning" }
+        );
+        if (!confirmed) return;
 
-    $: hasChanges =
-        JSON.stringify(settings) !== JSON.stringify(originalSettings);
+        const vaultPath = settings.vault_path || defaultSettings.vault_path;
+        const vaultName = settings.vault_name || defaultSettings.vault_name;
+        settings = {
+            ...defaultSettings,
+            vault_path: vaultPath,
+            vault_name: vaultName,
+        };
+        await performSave();
+    }
 </script>
 
-<div class="settings-container">
+<div class="settings-container"
+    style="
+        --settings-bg: {t.bg};
+        --settings-surface: {t.surface};
+        --settings-text: {t.text};
+        --settings-text-secondary: {t.textSecondary};
+        --settings-input-bg: {t.inputBg};
+        --settings-border: {t.border};
+        --settings-input-border: {t.inputBorder};
+        --settings-nav-text: {t.navText};
+        --settings-nav-label: {t.navLabel};
+        --settings-section-title: {t.sectionTitle};
+        --settings-label: {t.fieldLabel};
+        --settings-btn-bg: {t.btnBg};
+        --settings-btn-text: {t.btnText};
+        --settings-indicator: {t.indicator};
+        --settings-accent: {settings.accent_color || '#8b5cf6'};
+    "
+>
     <header>
         <h1>Settings</h1>
         {#if statusMessage}
-            <div class="status {statusType}">{statusMessage}</div>
+            <span
+                class="save-indicator"
+                class:visible={statusMessage}
+                class:error={statusType === "error"}
+            >
+                {statusMessage}
+            </span>
         {/if}
     </header>
 
@@ -158,37 +243,30 @@
                 </nav>
             </aside>
 
-            <div class="settings-content">
-                {#if activePanel === "obsidian"}
-                    <PanelObsidian bind:settings {showStatus} />
-                {:else if activePanel === "images"}
-                    <PanelImages bind:settings {showStatus} />
+            <div class="settings-content" on:input={scheduleAutoSave}>
+                {#if activePanel === "vault"}
+                    <PanelVault bind:settings {showStatus} onChange={scheduleAutoSave} />
+                {:else if activePanel === "capture"}
+                    <PanelCapture bind:settings {showStatus} />
+                {:else if activePanel === "reader"}
+                    <PanelReader bind:settings {showStatus} {vaultNotes} onChange={scheduleAutoSave} />
                 {:else if activePanel === "look"}
                     <PanelLook bind:settings {showStatus} />
-                {:else if activePanel === "note-window"}
-                    <PanelNoteWindow bind:settings {showStatus} />
-                {:else if activePanel === "reader-window"}
-                    <PanelReaderWindow bind:settings {showStatus} />
-                {:else if activePanel === "activation"}
-                    <PanelActivation bind:settings {showStatus} />
                 {:else if activePanel === "shortcuts"}
-                    <PanelShortcuts bind:settings {showStatus} />
+                    <PanelShortcuts bind:settings {showStatus} onChange={scheduleAutoSave} />
+                {:else if activePanel === "activation"}
+                    <PanelActivation bind:settings onChange={scheduleAutoSave} />
+                {:else if activePanel === "images"}
+                    <PanelImages bind:settings {showStatus} onChange={scheduleAutoSave} />
                 {/if}
             </div>
         </div>
     </main>
 
     <footer>
-        <button class="secondary" on:click={handleReset}>Reset</button>
+        <button class="secondary" on:click={handleReset}>Reset All</button>
         <div class="spacer"></div>
-        <button class="secondary" on:click={handleCancel}>Cancel</button>
-        <button
-            class="primary"
-            on:click={handleSave}
-            disabled={isSaving || !hasChanges}
-        >
-            {isSaving ? "Saving..." : "Save"}
-        </button>
+        <button class="secondary" on:click={handleClose}>Close</button>
     </footer>
 </div>
 
@@ -199,19 +277,19 @@
         height: 100vh;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
         font-size: 13px;
-        color: #1a1a1a;
-        background: #f2f2f2;
+        color: var(--settings-text);
+        background: var(--settings-bg);
     }
 
     header {
         padding: 12px 18px;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--settings-surface);
         backdrop-filter: blur(40px);
         -webkit-backdrop-filter: blur(40px);
-        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        border-bottom: 1px solid var(--settings-border);
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 12px;
     }
 
     header h1 {
@@ -221,32 +299,25 @@
         letter-spacing: -0.3px;
     }
 
-    .status {
-        padding: 8px 14px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 500;
-        letter-spacing: 0.2px;
-        animation: slideIn 0.3s ease;
+    .save-indicator {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 5px;
+        color: #065f46;
+        background: #d1fae5;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        letter-spacing: 0.1px;
     }
 
-    @keyframes slideIn {
-        from {
-            opacity: 0;
-            transform: translateX(-8px);
-        }
+    .save-indicator.visible {
+        opacity: 1;
     }
 
-    .status.success {
-        background: var(--success-bg);
-        color: var(--success-color);
-        border: 1px solid var(--success-border);
-    }
-
-    .status.error {
-        background: var(--error-bg);
-        color: var(--error-color);
-        border: 1px solid var(--error-border);
+    .save-indicator.error {
+        color: #991b1b;
+        background: #fecaca;
     }
 
     main {
@@ -264,8 +335,8 @@
 
     .settings-sidebar {
         min-height: 0;
-        background: rgba(255, 255, 255, 0.95);
-        border-right: 1px solid rgba(0, 0, 0, 0.07);
+        background: var(--settings-surface);
+        border-right: 1px solid var(--settings-border);
         padding-right: 0;
     }
 
@@ -288,27 +359,27 @@
         background: none;
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
-        color: #374151;
+        color: var(--settings-nav-text);
         text-align: left;
         transition: background 0.15s ease;
     }
 
     .nav-item:hover {
-        background: rgba(0, 0, 0, 0.03);
+        background: rgba(128, 128, 128, 0.08);
     }
 
     .nav-item.active {
-        background: rgba(0, 0, 0, 0.05);
+        background: rgba(128, 128, 128, 0.12);
     }
 
     .nav-item.active:hover {
-        background: rgba(0, 0, 0, 0.05);
+        background: rgba(128, 128, 128, 0.12);
     }
 
     .nav-item-label {
         font-size: 13px;
         font-weight: 500;
-        color: #111827;
+        color: var(--settings-nav-label);
     }
 
     .settings-content {
@@ -327,56 +398,6 @@
         padding-bottom: 12px;
     }
 
-    :global(.settings-panel > section) {
-        background: none;
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        padding: 0 0 24px 0;
-        margin-top: 0px;
-        padding-bottom: 12px;
-        border-top: 1px solid rgba(0, 0, 0, 0.07);
-    }
-
-    :global(.settings-panel > section:first-of-type) {
-        border-top: none;
-        margin-top: 0;
-    }
-
-    :global(.settings-panel > section h2) {
-        font-size: 14px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #9ca3af;
-        margin: 0 0 4px 0;
-        padding-top: 12px;
-        padding-bottom: 0px;
-    }
-
-    :global(.panel-intro) {
-        background: none;
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        padding: 0 0 8px 0;
-        margin-top: 0;
-        border-top: none;
-    }
-
-    :global(.panel-intro h2) {
-        font-size: 18px;
-        font-weight: 600;
-        color: #111827;
-        text-transform: none;
-        letter-spacing: -0.3px;
-        margin-bottom: 6px;
-    }
-
     :global(.field) {
         margin-bottom: 4px;
     }
@@ -390,7 +411,7 @@
         display: block;
         font-size: 13px;
         font-weight: 500;
-        color: #111827;
+        color: var(--settings-label);
         margin-bottom: 5px;
         padding-top: 12px;
     }
@@ -399,7 +420,7 @@
         display: block;
         font-size: 11px;
         font-weight: 400;
-        color: #9ca3af;
+        color: var(--settings-text-secondary);
         margin-top: 4px;
         padding-left: 14px;
         padding-bottom: 4px;
@@ -407,16 +428,50 @@
 
     :global(input[type="text"]),
     :global(input[type="number"]),
-    :global(select),
     :global(textarea) {
         width: 100%;
         padding: 9px 12px;
-        border: 1.5px solid rgba(0, 0, 0, 0.1);
+        border: 1.5px solid var(--settings-input-border);
         border-radius: 6px;
         font-size: 13px;
-        background: white;
+        background: var(--settings-input-bg);
+        color: var(--settings-text);
         transition: all 0.2s ease;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+    }
+
+    :global(input[type="number"]) {
+        -moz-appearance: textfield;
+    }
+
+    :global(input[type="number"]::-webkit-inner-spin-button),
+    :global(input[type="number"]::-webkit-outer-spin-button) {
+        -webkit-appearance: none;
+        appearance: none;
+        display: none;
+    }
+
+    :global(select) {
+        display: block;
+        width: 100%;
+        padding: 9px 28px 9px 12px;
+        border: 1.5px solid var(--settings-input-border);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--settings-input-bg);
+        color: var(--settings-text);
+        transition: all 0.2s ease;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro", sans-serif;
+        min-height: 36px;
+        box-sizing: border-box;
+        -moz-appearance: none;
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 10px 6px;
+        cursor: pointer;
     }
 
     :global(textarea) {
@@ -431,7 +486,7 @@
     :global(select:focus),
     :global(textarea:focus) {
         outline: none;
-        background: rgba(0, 0, 0, 0.01);
+        background: rgba(139, 92, 246, 0.04);
     }
 
     :global(.section-description) {
@@ -441,25 +496,12 @@
         line-height: 1.45;
     }
 
-    :global(.checkbox) {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        font-weight: normal;
-    }
-
-    .modifier-help {
-        display: block;
-        margin-bottom: 8px;
-    }
-
     footer {
         padding: 16px 24px;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--settings-surface);
         backdrop-filter: blur(40px);
         -webkit-backdrop-filter: blur(40px);
-        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        border-top: 1px solid var(--settings-border);
         display: flex;
         gap: 10px;
         align-items: center;
@@ -479,41 +521,14 @@
         transition: all 0.2s ease;
     }
 
-    :global(button.primary) {
-        background: linear-gradient(
-            135deg,
-            var(--accent-color, #8b5cf6) 0%,
-            #7c3aed 100%
-        );
-        color: white;
-        border: 1px solid
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 35%, transparent);
-        box-shadow: 0 2px 8px
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 25%, transparent);
-    }
-
-    :global(button.primary:hover:not(:disabled)) {
-        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-        box-shadow: 0 4px 12px
-            color-mix(in srgb, var(--accent-color, #8b5cf6) 30%, transparent);
-        transform: translateY(-1px);
-    }
-
-    :global(button.primary:disabled) {
-        opacity: 0.75;
-        background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
-        color: rgba(255, 255, 255, 0.96);
-        cursor: not-allowed;
-    }
-
     :global(button.secondary) {
-        background: rgba(0, 0, 0, 0.07);
-        color: #111827;
+        background: var(--settings-btn-bg);
+        color: var(--settings-btn-text);
         border: none;
     }
 
     :global(button.secondary:hover) {
-        background: #d5d5d5;
+        background: rgba(128, 128, 128, 0.18);
     }
 
     :global(.path-picker) {
@@ -525,7 +540,7 @@
         flex: 1;
         font-family: "SF Mono", Menlo, Monaco, monospace;
         font-size: 12px;
-        background: #f9f9f9;
+        background: var(--settings-input-bg);
     }
 
     :global(.path-picker button) {

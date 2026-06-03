@@ -10,7 +10,7 @@ const READER_FILTER_KEYS = [
 ];
 
 export function computeBrightnessFilter(brightness = 0) {
-  if (brightness === 0) return "";
+  if (brightness === 0) return " brightness(1)";
 
   if (brightness > 0) {
     const brightnessValue = 1 + (brightness / 100) * 0.6;
@@ -47,13 +47,13 @@ export function applySettings(currentSettings = {}, settings = {}) {
     ...currentSettings,
     vault_name: settings.vault_name ?? currentSettings.vault_name,
     vault_path: settings.vault_path ?? currentSettings.vault_path,
-    background_color:
-      settings.background_color ?? currentSettings.background_color,
+    overlay_color:
+      settings.overlay_color ?? currentSettings.overlay_color,
     font_family: settings.font_family ?? currentSettings.font_family,
     font_size: settings.font_size ?? currentSettings.font_size,
     border_radius: settings.border_radius ?? currentSettings.border_radius,
-    window_transparency:
-      settings.window_transparency ?? currentSettings.window_transparency,
+    overlay_strength:
+      settings.overlay_strength ?? currentSettings.overlay_strength,
     window_blur: settings.window_blur ?? currentSettings.window_blur,
     window_saturation:
       settings.window_saturation ?? currentSettings.window_saturation,

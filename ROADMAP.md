@@ -14,6 +14,7 @@ Features may shift between versions based on feedback.
 
 ## Planned
 - multiple Vault support
+- basic markdown support for both windows (bolt, italic, etc.)
 
 ### Capture
 - OCR: capture text from a screen region to note window

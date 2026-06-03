@@ -92,14 +92,14 @@
         border-radius: var(--app-border-radius, 12px);
         background: color-mix(
             in srgb,
-            var(--app-background, #1e1e2e) var(--app-transparency, 85%),
-            transparent
+            rgba(12, 14, 18, 0.88) 82%,
+            var(--app-background, #1e1e2e)
         );
         color: var(--app-text-color, #ffffff);
         font-family: var(--app-font-family, var(--font-family));
-        backdrop-filter: blur(var(--app-blur, 80px))
+        backdrop-filter: blur(40px)
             saturate(var(--app-saturation, 200%)) var(--app-brightness-filter);
-        -webkit-backdrop-filter: blur(var(--app-blur, 80px))
+        -webkit-backdrop-filter: blur(40px)
             saturate(var(--app-saturation, 200%)) var(--app-brightness-filter);
         box-shadow: var(--overlay-shadow);
     }

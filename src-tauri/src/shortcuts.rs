@@ -65,31 +65,49 @@ impl ShortcutManager {
                             if let Some(window) = app_handle2.get_webview_window("capture") {
                                 if window.is_visible().unwrap_or(false) {
                                     if closes_window {
-                                        warn_if_failed(window.hide(), "Failed to hide capture window");
+                                        warn_if_failed(
+                                            window.hide(),
+                                            "Failed to hide capture window",
+                                        );
                                         let state = app_handle2.state::<crate::AppState>();
                                         state.edge_detector.set_capture_open(false).await;
                                     } else {
-                                        warn_if_failed(window.show(), "Failed to show capture window");
-                                        warn_if_failed(window.set_focus(), "Failed to focus capture window");
+                                        warn_if_failed(
+                                            window.show(),
+                                            "Failed to show capture window",
+                                        );
+                                        warn_if_failed(
+                                            window.set_focus(),
+                                            "Failed to focus capture window",
+                                        );
                                     }
                                     return;
                                 }
                             }
 
                             warn_if_failed(
+                                app_handle2.emit("reset_capture", ()),
+                                "Failed to emit reset_capture",
+                            );
+                            warn_if_failed(
                                 app_handle2.emit("show_capture", ()),
                                 "Failed to emit show_capture",
                             );
                             if let Some(window) = app_handle2.get_webview_window("capture") {
                                 warn_if_failed(window.show(), "Failed to show capture window");
-                                warn_if_failed(window.set_focus(), "Failed to focus capture window");
+                                warn_if_failed(
+                                    window.set_focus(),
+                                    "Failed to focus capture window",
+                                );
                             }
                         });
                     }
                 })
                 .map_err(|e| {
-                    let err_msg =
-                        format!("Failed to register shortcut '{}': {:?}", open_shortcut_str, e);
+                    let err_msg = format!(
+                        "Failed to register shortcut '{}': {:?}",
+                        open_shortcut_str, e
+                    );
                     log::error!("{}", err_msg);
                     err_msg
                 })?;
@@ -121,8 +139,10 @@ impl ShortcutManager {
                     }
                 })
                 .map_err(|e| {
-                    let err_msg =
-                        format!("Failed to register shortcut '{}': {:?}", close_shortcut_str, e);
+                    let err_msg = format!(
+                        "Failed to register shortcut '{}': {:?}",
+                        close_shortcut_str, e
+                    );
                     log::error!("{}", err_msg);
                     err_msg
                 })?;
@@ -162,6 +182,7 @@ impl ShortcutManager {
             .on_shortcut(shortcut.clone(), move |_app, _shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     let app_handle2 = app_handle.clone();
+
                     tauri::async_runtime::spawn(async move {
                         let selected = tauri::async_runtime::spawn_blocking(
                             crate::selected_text::capture_selected_text,
@@ -186,7 +207,7 @@ impl ShortcutManager {
                             warn_if_failed(
                                 app_handle2.emit(
                                     "capture_text_failed",
-                                    "Accessibility permission required. Go to System Settings → Privacy & Security → Accessibility and enable Collector.",
+                                    "No text was captured. Select text in another app and try again.",
                                 ),
                                 "Failed to emit capture_text_failed",
                             );
@@ -289,12 +310,21 @@ impl ShortcutManager {
                             if let Some(window) = app_handle2.get_webview_window("reader") {
                                 if window.is_visible().unwrap_or(false) {
                                     if closes_window {
-                                        warn_if_failed(window.hide(), "Failed to hide reader window");
+                                        warn_if_failed(
+                                            window.hide(),
+                                            "Failed to hide reader window",
+                                        );
                                         let state = app_handle2.state::<crate::AppState>();
                                         state.edge_detector.set_reader_open(false).await;
                                     } else {
-                                        warn_if_failed(window.show(), "Failed to show reader window");
-                                        warn_if_failed(window.set_focus(), "Failed to focus reader window");
+                                        warn_if_failed(
+                                            window.show(),
+                                            "Failed to show reader window",
+                                        );
+                                        warn_if_failed(
+                                            window.set_focus(),
+                                            "Failed to focus reader window",
+                                        );
                                     }
                                     return;
                                 }
@@ -320,8 +350,10 @@ impl ShortcutManager {
 
         if !closes_window && !close_shortcut_str.trim().is_empty() {
             let shortcut: Shortcut = close_shortcut_str.parse().map_err(|e| {
-                let err_msg =
-                    format!("Invalid reader close shortcut '{}': {:?}", close_shortcut_str, e);
+                let err_msg = format!(
+                    "Invalid reader close shortcut '{}': {:?}",
+                    close_shortcut_str, e
+                );
                 log::error!("{}", err_msg);
                 err_msg
             })?;

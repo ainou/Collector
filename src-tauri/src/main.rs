@@ -6,8 +6,10 @@
 
 mod capture;
 mod edge_detect;
+mod fs_util;
 mod image_handler;
 mod log_safety;
+mod markdown_sections;
 mod selected_text;
 mod settings;
 mod shortcuts;
@@ -109,7 +111,11 @@ fn resolve_vault_read_path(settings: &Settings, requested_path: &str) -> Result<
     }
 }
 
-fn resolve_vault_write_path(settings: &Settings, requested_path: &str) -> Result<PathBuf, String> {
+fn resolve_vault_write_path(
+    settings: &Settings,
+    requested_path: &str,
+    create_parent: bool,
+) -> Result<PathBuf, String> {
     let vault_root = canonical_vault_root(settings)?;
     let normalized = normalize_path(Path::new(requested_path))?;
     let candidate = if normalized.is_absolute() {
@@ -127,7 +133,16 @@ fn resolve_vault_write_path(settings: &Settings, requested_path: &str) -> Result
     let parent = candidate
         .parent()
         .ok_or_else(|| "Invalid note path".to_string())?;
-    fs::create_dir_all(parent).map_err(|e| format!("Failed to create note directory: {}", e))?;
+
+    if create_parent {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create note directory: {}", e))?;
+    } else if !parent.exists() {
+        return Err(
+            "Daily Notes folder not found. Please check your folder path in Settings."
+                .to_string(),
+        );
+    }
 
     let filename = candidate
         .file_name()
@@ -324,12 +339,14 @@ async fn save_as_note(
         None => capture::build_note_relative_path(&settings),
     };
 
-    let resolved = resolve_vault_write_path(&settings, &relative_path)?;
+    let resolved = resolve_vault_write_path(&settings, &relative_path, true)?;
     let filename = resolved
         .file_name()
         .and_then(|value| value.to_str())
         .ok_or_else(|| "Invalid note filename".to_string())?
         .to_string();
+
+    let result = capture::save_note_at_path(&content.trim(), &resolved, &filename, &settings)?;
 
     state.edge_detector.set_capture_open(false).await;
 
@@ -342,8 +359,6 @@ async fn save_as_note(
     ))
     .await;
 
-    let result = capture::save_note_at_path(&content.trim(), &resolved, &filename, &settings)?;
-
     Ok(result.message)
 }
 
@@ -354,10 +369,15 @@ async fn append_to_daily_note(
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     settings.validate()?;
+    if settings.daily_note_folder.trim().is_empty() {
+        return Err(
+            "Daily Note folder is not configured. Please set it in Settings.".to_string(),
+        );
+    }
     let daily_path = capture::build_daily_note_path(&settings);
-    let resolved = resolve_vault_write_path(&settings, &daily_path)?;
+    let resolved = resolve_vault_write_path(&settings, &daily_path, false)?;
 
-    capture::append_to_daily_note(&text, &resolved, &settings)?;
+    capture::append_to_daily_note(&text, &resolved, &settings).await?;
 
     Ok(())
 }
@@ -370,7 +390,7 @@ async fn append_to_note(
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
     settings.validate()?;
-    let resolved = resolve_vault_write_path(&settings, &path)?;
+    let resolved = resolve_vault_write_path(&settings, &path, false)?;
 
     capture::append_to_note(&text, &resolved, &settings)?;
 
@@ -381,11 +401,7 @@ async fn append_to_note(
 async fn read_note_file(path: String, state: tauri::State<'_, AppState>) -> Result<String, String> {
     let settings = state.settings.read().await.clone();
     let resolved = resolve_vault_read_path(&settings, &path)?;
-    let result = timeout(
-        Duration::from_secs(5),
-        tokio::fs::read_to_string(&resolved),
-    )
-    .await;
+    let result = timeout(Duration::from_secs(5), tokio::fs::read_to_string(&resolved)).await;
 
     match result {
         Ok(Ok(content)) => Ok(content),
@@ -401,8 +417,9 @@ async fn write_note_file(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
     let settings = state.settings.read().await.clone();
-    let resolved = resolve_vault_write_path(&settings, &path)?;
-    fs::write(&resolved, content).map_err(|e| format!("Failed to write file: {}", e))
+    let resolved = resolve_vault_write_path(&settings, &path, true)?;
+    crate::fs_util::atomic_write_text(&resolved, &content)
+        .map_err(|e| format!("Failed to write file: {}", e))
 }
 
 #[tauri::command]
@@ -417,6 +434,36 @@ async fn open_external_url(url: String) -> Result<(), String> {
 
     open::that(&url).map_err(|e| format!("Failed to open URL: {}", e))?;
     Ok(())
+}
+
+#[tauri::command]
+fn collect_apps(dir: &std::path::Path, seen: &mut std::collections::HashSet<String>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("app") {
+                if let Some(name) = path.file_stem() {
+                    seen.insert(name.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+}
+
+#[tauri::command]
+async fn list_applications() -> Result<Vec<String>, String> {
+    let mut seen = std::collections::HashSet::new();
+
+    collect_apps(std::path::Path::new("/Applications"), &mut seen);
+    collect_apps(std::path::Path::new("/System/Applications"), &mut seen);
+
+    if let Ok(home) = std::env::var("HOME") {
+        collect_apps(&std::path::Path::new(&home).join("Applications"), &mut seen);
+    }
+
+    let mut apps: Vec<String> = seen.into_iter().collect();
+    apps.sort();
+    Ok(apps)
 }
 
 #[tauri::command]
@@ -513,8 +560,13 @@ async fn list_vault_notes(
 async fn get_daily_note_path(state: tauri::State<'_, AppState>) -> Result<String, String> {
     let settings = state.settings.read().await.clone();
     settings.validate()?;
+    if settings.daily_note_folder.trim().is_empty() {
+        return Err(
+            "Daily Note folder is not configured. Please set it in Settings.".to_string(),
+        );
+    }
     let daily_path = capture::build_daily_note_path(&settings);
-    let file_path = resolve_vault_write_path(&settings, &daily_path)?;
+    let file_path = resolve_vault_write_path(&settings, &daily_path, false)?;
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -686,7 +738,7 @@ async fn get_window_info(state: tauri::State<'_, AppState>) -> Result<serde_json
         "readerWidth": settings.reader_width,
         "readerHeight": settings.reader_height,
         "borderRadius": settings.border_radius,
-        "backgroundColor": settings.background_color,
+        "backgroundColor": settings.overlay_color,
         "fontFamily": settings.font_family,
         "fontSize": settings.font_size,
         "edgeSide": settings.edge_side,
@@ -836,8 +888,13 @@ fn position_reader_window_logical(
         .set_size(LogicalSize::new(width, height))
         .map_err(|e| e.to_string())?;
 
+    let x = match settings.reader_edge_side.as_str() {
+        "left" => monitor.x as f64,
+        "right" | _ => monitor.x as f64 + monitor.width as f64 - width,
+    };
+
     window
-        .set_position(LogicalPosition::new(monitor.x as f64, y))
+        .set_position(LogicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
 
     Ok(())
@@ -893,6 +950,7 @@ fn show_capture_window(app: &AppHandle, settings: &Settings) {
         );
         warn_if_failed(window.show(), "Failed to show capture window");
         warn_if_failed(window.set_focus(), "Failed to focus capture window");
+        warn_if_failed(app.emit("reset_capture", ()), "Failed to emit reset_capture");
         warn_if_failed(app.emit("show_capture", ()), "Failed to emit show_capture");
     }
 }
@@ -961,9 +1019,10 @@ fn main() {
             let menu = create_tray_menu(&app_handle);
             let settings_for_tray = settings.clone();
             let _tray = TrayIconBuilder::with_id("main")
-                .icon(tauri::image::Image::from_bytes(
-                    include_bytes!("../icons/tray-icon.png")
-                ).unwrap())
+                .icon(
+                    tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
+                        .unwrap(),
+                )
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "quick_capture" => {
@@ -1161,6 +1220,7 @@ fn main() {
             write_note_file,
             open_external_url,
             get_running_apps,
+            list_applications,
             load_image_data_url,
             load_images_batch,
             list_vault_notes,
@@ -1228,7 +1288,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = resolve_vault_write_path(&settings, "../outside.md");
+        let result = resolve_vault_write_path(&settings, "../outside.md", false);
         assert!(result.is_err());
 
         let _ = fs::remove_dir_all(vault_dir);

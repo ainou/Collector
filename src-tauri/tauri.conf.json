@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Collector",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "identifier": "com.collector.app",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:1421",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
@@ -14,7 +14,7 @@
     "withGlobalTauri": false,
     "security": {
       "csp": "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
-      "devCsp": "default-src 'self'; img-src 'self' data: blob: http://localhost:1420; style-src 'self' 'unsafe-inline' http://localhost:1420; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' http://localhost:1420; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420; font-src 'self' http://localhost:1420; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+      "devCsp": "default-src 'self'; img-src 'self' data: blob: http://localhost:1421; style-src 'self' 'unsafe-inline' http://localhost:1421; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' http://localhost:1421; connect-src 'self' ipc: http://ipc.localhost http://localhost:1421 ws://localhost:1421; font-src 'self' http://localhost:1421; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
       "freezePrototype": true,
       "capabilities": [
         {
@@ -36,7 +36,8 @@
             "core:window:allow-start-dragging",
             "core:window:allow-unminimize",
             "core:webview:default",
-            "dialog:allow-open"
+            "dialog:allow-open",
+            "dialog:allow-confirm"
           ]
         }
       ]

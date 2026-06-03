@@ -5,6 +5,83 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.3] - 2026-06-03
+
+### Added
+- Captures can now be inserted under a specific heading in the daily
+  note (configurable target heading, top or bottom of the section).
+  The heading can be auto-created if missing; falls back to appending
+  at the end when no target is set.
+- Daily notes can now be created automatically when missing —
+  Collector opens Obsidian (Advanced URI plugin necessary), waits for
+  the file to appear, and writes the capture into the configured
+  section. Timeout and stability-check are configurable.
+- Action bar at the bottom of the capture window with three buttons:
+  Daily Note, New Note, Append — same actions as the keyboard
+  shortcuts. Can be toggled off in Settings.
+- Settings now save automatically after a short debounce. No Save button
+  required.
+- Setting sections are now collapsible — click a heading to collapse
+  or expand.
+- **Dark mode for Settings.** The settings window now follows your
+  system appearance (light / dark). Clean, two proper themes with
+  custom-styled sliders, adaptive inputs, and consistent colours
+  across all panels.
+- Three new setting panels: **Vault**, **Capture**, **Reader**.
+  The old Obsidian Integration and
+  Note/Capture Window panels were split and reorganised.
+- `Cmd + ,` now opens Settings from the Reader window too (was
+  capture-window only).
+- Custom styled checkboxes across all Settings panels — bigger,
+  border-radius matching inputs, accent colour, light/dark mode
+  support. Orange native checkbox gone.
+- Reset All in Settings now shows a native confirmation dialog
+  before resetting (vault connection is preserved).
+- Pinned notes can now be added via search palette instead of native
+  file picker.
+
+### Changed
+- Daily note captures now use section-insert logic instead of raw
+  file append. Existing behaviour is preserved when no target heading
+  is configured.
+- Section headings in settings larger (16 px) with more spacing.
+- Settings panel labels tidied up: "Look" → "Look & Feel",
+  "Note Window" → "Capture Window" throughout.
+- Success labels ("✓ Saved", "✓ …", "✓ Appended") removed from all
+  three capture actions. Window closing is now the only success
+  feedback. Error messages remain and keep the window open.
+
+### Fixed
+- Hardcoded "Journal" default for daily note folder removed — user-configured path is now respected; an error is shown if the folder is empty or missing.
+- Daily Notes folder is no longer silently created if it doesn't exist — an error is shown immediately instead.
+- Daily Note tab now uses a safer mechanism to always reflect the current day
+  when the Reader is opened.
+- Capture text shortcut (Cmd+Shift+C) now reliably reads selected text
+  via clipboard sentinel instead of unreliable AXSelectedText API.
+- Blur and saturation had no effect when Brightness was set to 0.
+  Empty brightness filter string made the entire `backdrop-filter`
+  CSS declaration invalid. Now always emits `brightness(1)` as a
+  valid no-op identity filter.
+- `append_to_note` failed with "Bad file descriptor (os error 9)"
+  when the note already existed. File was opened write-only; added
+  `.read(true)` to OpenOptions so the trailing-newline check works.
+- Error message when waiting for the daily note no longer contains
+  awkward extra whitespace.
+- Settings window was white-on-white for dark mode users — now
+  detects system preference and renders a proper dark theme.
+- Removed unused CSS selector in Settings.
+- Reset All now preserves the current vault connection and saves the
+  reset automatically.
+- Frontend defaults now include `vault_path`, preventing resets from
+  producing an undefined vault path.
+- Programmatic Settings changes now trigger auto-save for recorded
+  shortcuts, excluded edge apps, and pinned note icon/label changes.
+- Legacy `daily_note_path` configs are now migrated reliably to
+  `daily_note_folder` and `daily_note_format` without overwriting newer
+  configs.
+
+---
+
 ## [1.2.2] - 2026-05-31
 
 ### Fixed

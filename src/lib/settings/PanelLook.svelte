@@ -1,4 +1,5 @@
 <script>
+    import Section from "./Section.svelte";
     import { getSystemFonts } from "../utils.js";
 
     export let settings;
@@ -10,8 +11,7 @@
 </script>
 
 <div class="settings-panel">
-    <section>
-        <h2>Window Surface</h2>
+    <Section title="Glass Effect">
         <div class="field">
             <label for="border_radius">Corner Radius: {settings.border_radius}px</label>
             <input
@@ -19,39 +19,11 @@
                 id="border_radius"
                 bind:value={settings.border_radius}
                 min="0"
-                max="12"
+                max="20"
             />
         </div>
         <div class="field">
-            <label for="background_color">Background Color</label>
-            <div class="color-input">
-                <input
-                    type="color"
-                    id="background_color"
-                    bind:value={settings.background_color}
-                />
-                <input
-                    type="text"
-                    bind:value={settings.background_color}
-                    pattern="^#[0-9A-Fa-f]{6}$"
-                />
-            </div>
-        </div>
-        <div class="field">
-            <label for="window_transparency"
-                >Transparency: {settings.window_transparency ?? 55}%</label
-            >
-            <input
-                type="range"
-                id="window_transparency"
-                bind:value={settings.window_transparency}
-                min="0"
-                max="100"
-            />
-            <small>Transparency of window background</small>
-        </div>
-        <div class="field">
-            <label for="window_blur">Blur: {settings.window_blur ?? 80}px</label>
+            <label for="window_blur">Background Blur: {settings.window_blur ?? 80}px</label>
             <input
                 type="range"
                 id="window_blur"
@@ -59,11 +31,11 @@
                 min="0"
                 max="200"
             />
-            <small>Background blur effect</small>
+            <small>Blurs what is behind the window.</small>
         </div>
         <div class="field">
             <label for="window_saturation"
-                >Saturation: {settings.window_saturation ?? 200}%</label
+                >Background Saturation: {settings.window_saturation ?? 200}%</label
             >
             <input
                 type="range"
@@ -72,13 +44,11 @@
                 min="0"
                 max="300"
             />
-            <small>Background color intensity</small>
+            <small>Adjusts the color intensity behind the window.</small>
         </div>
         <div class="field">
             <label for="window_brightness"
-                >Brightness: {(settings.window_brightness ?? 0 > 0)
-                    ? ""
-                    : ""}{settings.window_brightness ?? 0}</label
+                >Background Brightness: {settings.window_brightness ?? 0}</label
             >
             <input
                 type="range"
@@ -87,12 +57,42 @@
                 min="-100"
                 max="100"
             />
-            <small>Brightens dark areas or darkens light areas</small>
+            <small>Darkens or brightens what is behind the window.</small>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Accent & Links</h2>
+    <Section title="Color Overlay">
+        <div class="field">
+            <label for="overlay_color">Overlay Color</label>
+            <div class="color-input">
+                <input
+                    type="color"
+                    id="overlay_color"
+                    bind:value={settings.overlay_color}
+                />
+                <input
+                    type="text"
+                    bind:value={settings.overlay_color}
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                />
+            </div>
+        </div>
+        <div class="field">
+            <label for="overlay_strength"
+                >Overlay Strength: {settings.overlay_strength ?? 10}%</label
+            >
+            <input
+                type="range"
+                id="overlay_strength"
+                bind:value={settings.overlay_strength}
+                min="0"
+                max="100"
+            />
+            <small>0% = no color overlay, 100% = solid overlay color.</small>
+        </div>
+    </Section>
+
+    <Section title="Accent & Links">
         <div class="field">
             <label for="accent_color">Accent Color</label>
             <div class="color-input">
@@ -139,10 +139,9 @@
                 />
             </div>
         </div>
-    </section>
+    </Section>
 
-    <section>
-        <h2>Typography</h2>
+    <Section title="Typography">
         <div class="field">
             <label for="font_family">Font Family</label>
             <select id="font_family" bind:value={settings.font_family}>
@@ -158,7 +157,7 @@
                 id="font_size"
                 bind:value={settings.font_size}
                 min="10"
-                max="20"
+                max="24"
             />
         </div>
         <div class="field">
@@ -175,15 +174,45 @@
                     pattern="^#[0-9A-Fa-f]{6}$"
                 />
             </div>
-            <small>Default: White (#ffffff)</small>
+            <small>Default: #ffffff</small>
         </div>
-    </section>
+    </Section>
 </div>
 
 <style>
     input[type="range"] {
         width: 100%;
         margin: 4px 0;
+        -webkit-appearance: none;
+        appearance: none;
+        background: transparent;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 2px;
+        background: var(--settings-input-border, rgba(0, 0, 0, 0.15));
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--settings-text, #1a1a1a);
+        margin-top: -5px;
+        border: none;
+        cursor: pointer;
+    }
+
+    input[type="range"]:focus {
+        outline: none;
+    }
+
+    input[type="range"]:focus::-webkit-slider-thumb {
+        box-shadow: 0 0 0 2px var(--settings-input-bg, white),
+            0 0 0 4px rgba(139, 92, 246, 0.3);
     }
 
     .color-input {
@@ -196,7 +225,7 @@
         width: 40px;
         height: 32px;
         padding: 2px;
-        border: 1px solid #ddd;
+        border: 1px solid var(--settings-input-border, #ddd);
         border-radius: 4px;
         cursor: pointer;
     }
