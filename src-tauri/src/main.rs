@@ -345,6 +345,8 @@ async fn save_as_note(
         .ok_or_else(|| "Invalid note filename".to_string())?
         .to_string();
 
+    let result = capture::save_note_at_path(&content.trim(), &resolved, &filename, &settings)?;
+
     state.edge_detector.set_capture_open(false).await;
 
     if let Some(window) = app.get_webview_window("capture") {
@@ -355,8 +357,6 @@ async fn save_as_note(
         SAVE_AS_NOTE_HIDE_DELAY_MS,
     ))
     .await;
-
-    let result = capture::save_note_at_path(&content.trim(), &resolved, &filename, &settings)?;
 
     Ok(result.message)
 }

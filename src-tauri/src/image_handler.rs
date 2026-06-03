@@ -7,9 +7,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::build_image_data_url;
 use crate::log_safety::{redact_path, summarize_bytes};
 use crate::settings::Settings;
+use crate::{build_image_data_url, normalize_path};
 
 /// Result of saving an image
 #[derive(Debug)]
@@ -39,7 +39,7 @@ pub fn save_image(source_path: &Path, settings: &Settings) -> Result<SavedImage,
 
     let filename = generate_filename(&settings.image_filename);
 
-    let output_dir = resolve_screenshot_output_dir(settings);
+    let output_dir = resolve_screenshot_output_dir(settings)?;
 
     fs::create_dir_all(&output_dir)
         .map_err(|e| format!("Failed to create screenshot directory: {}", e))?;
@@ -69,12 +69,23 @@ pub fn save_image(source_path: &Path, settings: &Settings) -> Result<SavedImage,
     })
 }
 
-fn resolve_screenshot_output_dir(settings: &Settings) -> PathBuf {
-    let screenshot_path = PathBuf::from(&settings.screenshot_path);
-    if screenshot_path.is_absolute() {
+fn resolve_screenshot_output_dir(settings: &Settings) -> Result<PathBuf, String> {
+    let vault_root = normalize_path(Path::new(&settings.vault_path))?;
+    let screenshot_path = normalize_path(Path::new(&settings.screenshot_path))?;
+    let output_dir = if screenshot_path.is_absolute() {
         screenshot_path
     } else {
-        PathBuf::from(&settings.vault_path).join(screenshot_path)
+        vault_root.join(screenshot_path)
+    };
+    let output_dir = normalize_path(&output_dir)?;
+
+    if output_dir.starts_with(&vault_root) {
+        Ok(output_dir)
+    } else {
+        Err(
+            "Screenshot folder is outside the vault. Please check the screenshot folder path in Settings."
+                .to_string(),
+        )
     }
 }
 
