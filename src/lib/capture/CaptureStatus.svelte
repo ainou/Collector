@@ -18,7 +18,7 @@
       opacity 0.12s ease,
       transform 0.12s ease;
     position: absolute;
-    bottom: 16px;
+    bottom: 32px;
     left: 50%;
     transform: translateX(-50%);
     padding: 8px 16px;
@@ -31,7 +31,10 @@
     font-weight: 600;
     color: var(--success-color);
     animation: fadeInUp 0.2s ease-out;
+    max-width: calc(100% - 32px);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     z-index: 100;
   }
 
