@@ -37,6 +37,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   support. Orange native checkbox gone.
 - Reset All in Settings now shows a native confirmation dialog
   before resetting (vault connection is preserved).
+- Pinned notes can now be added via search palette instead of native
+  file picker.
 
 ### Changed
 - Action buttons border radius scaled to half of window corner radius;

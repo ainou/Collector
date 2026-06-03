@@ -7,6 +7,7 @@
         readerIconOptions,
     } from "../reader-icons.js";
     import { normalizePinnedNotes } from "./pinned-notes.js";
+    import { filterPaletteNotes } from "../reader/paletteLogic.js";
 
     export let settings;
     export let showStatus;
@@ -25,16 +26,30 @@
         );
     }
 
-    $: filteredPickerNotes = vaultNotes
-        .filter((note) => {
-            const q = pickerQuery.trim().toLowerCase();
-            if (!q) return true;
-            return (
-                note.name.toLowerCase().includes(q) ||
-                note.relative_path.toLowerCase().includes(q)
-            );
-        })
-        .slice(0, 20);
+    let pickerResultsRef;
+
+    $: filteredPickerNotes = filterPaletteNotes(vaultNotes, pickerQuery, 20);
+
+    function ensurePickerItemVisible() {
+        if (!pickerResultsRef) return;
+        const active = pickerResultsRef.querySelector(".picker-item.selected");
+        if (!active) return;
+
+        const itemTop = active.offsetTop;
+        const itemBottom = itemTop + active.offsetHeight;
+        const viewTop = pickerResultsRef.scrollTop;
+        const viewBottom = viewTop + pickerResultsRef.clientHeight;
+
+        if (itemTop < viewTop) {
+            pickerResultsRef.scrollTop = itemTop;
+        } else if (itemBottom > viewBottom) {
+            pickerResultsRef.scrollTop = itemBottom - pickerResultsRef.clientHeight;
+        }
+    }
+
+    $: if (notePickerOpen && filteredPickerNotes.length > 0 && pickerIndex >= 0) {
+        void tick().then(ensurePickerItemVisible);
+    }
 
     function openNotePicker() {
         pickerQuery = "";
@@ -228,7 +243,7 @@
                     }}
                     on:keydown={handlePickerKeydown}
                 />
-                <div class="picker-results">
+                <div class="picker-results" bind:this={pickerResultsRef}>
                     {#if filteredPickerNotes.length === 0}
                         <div class="picker-empty">No matching notes</div>
                     {:else}

@@ -8,6 +8,20 @@ export function filterPaletteNotes(vaultNotes = [], query = "", limit = 20) {
         note.name.toLowerCase().includes(normalizedQuery) ||
         note.relative_path.toLowerCase().includes(normalizedQuery),
     )
+    .sort((a, b) => {
+      const an = a.name.toLowerCase();
+      const bn = b.name.toLowerCase();
+
+      const aExact = an === normalizedQuery;
+      const bExact = bn === normalizedQuery;
+      if (aExact !== bExact) return aExact ? -1 : 1;
+
+      const aPrefix = an.startsWith(normalizedQuery);
+      const bPrefix = bn.startsWith(normalizedQuery);
+      if (aPrefix !== bPrefix) return aPrefix ? -1 : 1;
+
+      return 0;
+    })
     .slice(0, limit);
 }
 
