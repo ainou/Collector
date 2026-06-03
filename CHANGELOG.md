@@ -8,6 +8,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.2.3] - 2026-06-03
 
 ### Added
+
 - Captures can now be inserted under a specific heading in the daily
   note (configurable target heading, top or bottom of the section).
   The heading can be auto-created if missing; falls back to appending
@@ -30,6 +31,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Three new setting panels: **Vault**, **Capture**, **Reader**.
   The old Obsidian Integration and
   Note/Capture Window panels were split and reorganised.
+- `Cmd + ,` now opens Settings from the Reader window too (was
+  capture-window only).
 
 ### Changed
 - Daily note captures now use section-insert logic instead of raw
@@ -38,8 +41,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Section headings in settings larger (16 px) with more spacing.
 - Settings panel labels tidied up: "Look && Feel" → "Look & Feel",
   "Note Window" → "Capture Window" throughout.
+- Success labels ("✓ Saved", "✓ …", "✓ Appended") removed from all
+  three capture actions. Window closing is now the only success
+  feedback. Error messages remain and keep the window open.
 
 ### Fixed
+- `append_to_note` failed with "Bad file descriptor (os error 9)"
+  when the note already existed. File was opened write-only; added
+  `.read(true)` to OpenOptions so the trailing-newline check works.
 - Error message when waiting for the daily note no longer contains
   awkward extra whitespace.
 - Settings window was white-on-white for dark mode users — now
