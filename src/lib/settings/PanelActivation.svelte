@@ -234,6 +234,18 @@
             Applies to both Capture and Reader edge activation
         </small>
 
+        <style>
+            :global(.section-body > small.global-note) {
+                display: block;
+                font-size: 11px;
+                font-weight: 400;
+                color: var(--settings-text-secondary, #6b7280);
+                margin-top: 4px;
+                margin-bottom: 8px;
+                padding-left: 14px;
+            }
+        </style>
+
         <div class="field">
             {#if (settings.edge_excluded_apps ?? []).length > 0}
                 <ul class="exclusion-list">
@@ -299,35 +311,11 @@
         margin-top: 6px;
     }
 
-    .delay-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        margin-top: 8px;
-    }
-
-    .delay-card {
-        padding: 12px 0;
-    }
-
-    .delay-card-title {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--settings-label, #111827);
-        margin-bottom: 8px;
-    }
-
     .delay-toggle-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-    }
-
-    .compact-checkbox {
-        display: flex;
-        align-items: center;
-        margin-bottom: 0;
     }
 
     .delay-input {
@@ -462,10 +450,6 @@
     }
 
     @media (max-width: 860px) {
-        .delay-grid {
-            grid-template-columns: 1fr;
-        }
-
         .delay-toggle-row {
             align-items: flex-start;
             flex-direction: column;

@@ -833,8 +833,13 @@ fn position_reader_window_logical(
         .set_size(LogicalSize::new(width, height))
         .map_err(|e| e.to_string())?;
 
+    let x = match settings.reader_edge_side.as_str() {
+        "left" => monitor.x as f64,
+        "right" | _ => monitor.x as f64 + monitor.width as f64 - width,
+    };
+
     window
-        .set_position(LogicalPosition::new(monitor.x as f64, y))
+        .set_position(LogicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
 
     Ok(())
