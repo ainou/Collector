@@ -1,6 +1,7 @@
 <script>
     import { invoke } from "@tauri-apps/api/core";
     import { onMount, onDestroy } from "svelte";
+    import { confirm as dialogConfirm } from "@tauri-apps/plugin-dialog";
     import PanelActivation from "./lib/settings/PanelActivation.svelte";
     import PanelCapture from "./lib/settings/PanelCapture.svelte";
     import PanelImages from "./lib/settings/PanelImages.svelte";
@@ -158,17 +159,21 @@
         }
     }
 
-    function handleReset() {
-        if (confirm("Reset all settings to default?")) {
-            const vaultPath = settings.vault_path || defaultSettings.vault_path;
-            const vaultName = settings.vault_name || defaultSettings.vault_name;
-            settings = {
-                ...defaultSettings,
-                vault_path: vaultPath,
-                vault_name: vaultName,
-            };
-            scheduleAutoSave();
-        }
+    async function handleReset() {
+        const confirmed = await dialogConfirm(
+            "Reset all settings to defaults? Your vault connection will be kept.",
+            { title: "Reset settings", kind: "warning" }
+        );
+        if (!confirmed) return;
+
+        const vaultPath = settings.vault_path || defaultSettings.vault_path;
+        const vaultName = settings.vault_name || defaultSettings.vault_name;
+        settings = {
+            ...defaultSettings,
+            vault_path: vaultPath,
+            vault_name: vaultName,
+        };
+        scheduleAutoSave();
     }
 </script>
 
