@@ -1,4 +1,3 @@
-use chrono::Local;
 use image::{DynamicImage, ImageFormat};
 use serde::Serialize;
 use std::fs;
@@ -7,6 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::capture::render_datetime_template;
 use crate::log_safety::{redact_path, summarize_bytes};
 use crate::settings::Settings;
 use crate::{build_image_data_url, normalize_path};
@@ -170,17 +170,9 @@ fn compress_and_save(
 }
 
 /// Generate filename from template
-/// Supports: YYYY, MM, DD, HH, mm, ss
+/// Supports the same date/time tokens as note filename templates.
 fn generate_filename(template: &str) -> String {
-    let now = Local::now();
-
-    let filename = template
-        .replace("YYYY", &now.format("%Y").to_string())
-        .replace("MM", &now.format("%m").to_string())
-        .replace("DD", &now.format("%d").to_string())
-        .replace("HH", &now.format("%H").to_string())
-        .replace("mm", &now.format("%M").to_string())
-        .replace("ss", &now.format("%S").to_string());
+    let filename = render_datetime_template(template);
 
     // Add extension if not present
     if !filename.contains('.') {
